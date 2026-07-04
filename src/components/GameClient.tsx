@@ -35,6 +35,18 @@ const GameClient: React.FC<Props> = ({ levelData }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isWon, setIsWon] = useState(false);
   const [uiPath, setUiPath] = useState<string[]>([levelData.metadata.start_node]);
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    let interval: number;
+    if (!isWon) {
+      interval = window.setInterval(() => {
+        setSeconds(s => s + 0.1);
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [isWon]);
+
+  const formatTime = (s: number) => s.toFixed(1);
 
   // Game state refs for performance (ticker access)
   const stateRef = useRef({
@@ -176,7 +188,7 @@ const GameClient: React.FC<Props> = ({ levelData }) => {
       
       {isWon && <VictoryModal onNext={() => window.location.reload()} />}
 
-      <TargetIndicator name={levelData.metadata.end_name} />
+      <TargetIndicator name={levelData.metadata.end_name} time={seconds} />
       <PathBreadcrumbs path={uiPath} nodes={levelData.nodes} />
     </div>
   );
@@ -201,11 +213,18 @@ const VictoryModal = ({ onNext }: { onNext: () => void }) => (
   </div>
 );
 
-const TargetIndicator = ({ name }: { name: string }) => (
-  <div className="absolute top-4 left-4 z-10 pointer-events-none">
-    <div className="bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg">
-      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Target</p>
-      <p className="text-sm font-bold text-emerald-400">{name}</p>
+const TargetIndicator = ({ name, time }: { name: string; time: number }) => (
+  <div className="absolute top-4 right-4 z-20 pointer-events-none">
+    <div className="bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg flex items-center gap-3">
+      <div>
+        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Target</p>
+        <p className="text-sm font-bold text-emerald-400">{name}</p>
+      </div>
+      <div className="h-8 w-px bg-white/10" />
+      <div className="text-right">
+        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Timer</p>
+        <p className="text-sm font-bold text-amber-300">{time.toFixed(1)}s</p>
+      </div>
     </div>
   </div>
 );
