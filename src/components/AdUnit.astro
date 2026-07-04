@@ -1,0 +1,19 @@
+---
+interface Props {
+	type: 'banner' | 'skyscraper' | 'inline';
+	class?: string;
+}
+
+const { type, class: className } = Astro.props;
+
+const dimensions = {
+	banner: "w-full h-24",
+	skyscraper: "w-full h-[600px]",
+	inline: "w-full h-48"
+}
+---
+
+<div class={`${dimensions[type]} bg-slate-900 border border-white/5 flex items-center justify-center text-slate-500 text-xs uppercase tracking-widest ${className}`}>
+	<!-- Future: Paste AdSense <ins> code here -->
+	Ad Placement - {type}
+</div>

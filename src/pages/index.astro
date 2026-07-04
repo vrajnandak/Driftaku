@@ -1,25 +1,30 @@
 ---
 import Layout from '../layouts/Layout.astro';
-// We will create this component next
 import GameClient from '../components/GameClient.tsx';
-// Import your first level JSON
+import AdUnit from '../components/AdUnit.astro';
+import HowToPlay from '../components/HowToPlay.astro';
+import StatsCard from '../components/StatsCard.astro';
+
+// Levels
 import levelData from '../game_levels/daily_seed_1.json';
+
+const levelTitle = `Daily Web #${levelData.metadata.level.toString().padStart(3, '0')}`;
 ---
 
 <Layout title="Driftaku | Daily Anime Connection Puzzle">
 	<main class="max-w-6xl mx-auto px-4 py-8">
-		<!-- Ad Placement: Top Banner -->
-		<div class="w-full h-24 bg-slate-900 border border-white/5 mb-8 flex items-center justify-center text-slate-500 text-xs uppercase tracking-widest">
-			Ad Placement - Top Banner
-		</div>
+		
+		<AdUnit type="banner" class="mb-8" />
 
 		<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 			<!-- Main Game Area -->
 			<div class="lg:col-span-3">
 				<div class="bg-slate-900 rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative">
+					
+					<!-- Game Header -->
 					<div class="p-6 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
 						<div>
-							<h1 class="text-xl font-bold text-white">Daily Web #001</h1>
+							<h1 class="text-xl font-bold text-white">{levelTitle}</h1>
 							<p class="text-slate-400 text-sm">
 								Connect <span class="text-indigo-400 font-bold">{levelData.metadata.start_name}</span> 
 								to <span class="text-emerald-400 font-bold">{levelData.metadata.end_name}</span>
@@ -33,55 +38,20 @@ import levelData from '../game_levels/daily_seed_1.json';
 						</div>
 					</div>
 
-					<!-- THE PIXIJS GAME CANVAS -->
-					<!--
-					<div class="aspect-video w-full bg-black relative">
-						<GameClient client:only="react" levelData={levelData} />
-					</div>
-					--->
-					<div class="h-[600px] w-full relative">
+					<!-- Game Canvas Wrapper -->
+					<div class="h-[600px] w-full relative bg-black">
 						<GameClient client:only="react" levelData={levelData} />
 					</div>
 				</div>
 
-				<!-- SEO Content Section (Critical for AdSense) -->
-				<section class="mt-12 prose prose-invert max-w-none">
-					<h2 class="text-2xl font-bold text-white">How to play Driftaku</h2>
-					<p class="text-slate-400">
-						Driftaku is a daily logic puzzle for anime fans. Every day, a new "Web" of 50 interconnected nodes is generated. 
-						Your mission is to find the path from the starting anime to the target studio or character using shared relationships.
-					</p>
-					<div class="grid md:grid-cols-3 gap-6 not-prose mt-6">
-						<div class="bg-slate-900 p-4 rounded-xl border border-white/5">
-							<h3 class="text-indigo-400 font-bold mb-2">1. Explore the Graph</h3>
-							<p class="text-xs text-slate-400">Pinch or scroll to zoom into the web. Drag to pan around the connections.</p>
-						</div>
-						<div class="bg-slate-900 p-4 rounded-xl border border-white/5">
-							<h3 class="text-indigo-400 font-bold mb-2">2. Link Nodes</h3>
-							<p class="text-xs text-slate-400">Click a node connected to your current position to move forward. Avoid dead ends!</p>
-						</div>
-						<div class="bg-slate-900 p-4 rounded-xl border border-white/5">
-							<h3 class="text-indigo-400 font-bold mb-2">3. Beat the Clock</h3>
-							<p class="text-xs text-slate-400">The faster you connect the path, the higher your score on the global leaderboard.</p>
-						</div>
-					</div>
-				</section>
+				<HowToPlay />
 			</div>
 
 			<!-- Sidebar -->
 			<aside class="lg:col-span-1 space-y-8">
-				<div class="bg-indigo-600 rounded-2xl p-6 shadow-lg shadow-indigo-500/20">
-					<h3 class="font-bold text-white mb-2">Daily Stats</h3>
-					<p class="text-indigo-100 text-sm">3,421 players have attempted today's web. Average time: 42 seconds.</p>
-					<button class="w-full mt-4 bg-white text-indigo-600 font-bold py-2 rounded-lg hover:bg-indigo-50 transition">
-						Share Result
-					</button>
-				</div>
-
-				<!-- Ad Placement: Sidebar Skyscraper -->
-				<div class="w-full h-[600px] bg-slate-900 border border-white/5 flex items-center justify-center text-slate-500 text-xs uppercase tracking-widest">
-					Ad Placement - Skyscraper
-				</div>
+				<StatsCard players="3,421" avgTime="42 seconds" />
+				
+				<AdUnit type="skyscraper" />
 			</aside>
 		</div>
 	</main>
