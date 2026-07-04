@@ -33,6 +33,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const [tool, setTool] = useState<'select' | 'link'>('select');
   const [isWon, setIsWon] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -354,19 +355,6 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const toggleSidebar = () => {
     const newState = !isSidebarOpen;
     setIsSidebarOpen(newState);
-
-    // Force PIXI and Viewport to update after the CSS transition (300ms)
-    setTimeout(() => {
-        if (appRef.current) {
-            appRef.current.resize();
-        }
-        if (viewportRef.current && containerRef.current) {
-            viewportRef.current.screenWidth = containerRef.current.clientWidth;
-            viewportRef.current.screenHeight = containerRef.current.clientHeight;
-            // Re-center so the graph doesn't look like it shifted
-            viewportRef.current.moveCenter(1000, 1000);
-        }
-    }, 350); 
   };
 
   return (
@@ -386,20 +374,39 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                       </button>
                   </div>
+                  <div className="p-3">
+                    <input 
+                      type="text"
+                      placeholder="Search anime, actors..."
+                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
-                      {warehouseNodes.map(node => (
-                          <div key={node.id} onClick={() => deployNode(node)} className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95">
-                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                                  {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                      {(() => {
+                          const filteredNodes = warehouseNodes.filter(node => 
+                              node.name.toLowerCase().includes(searchQuery.toLowerCase())
+                          );
+
+                          return filteredNodes.map(node => (
+                              <div 
+                                  key={node.id} 
+                                  onClick={() => deployNode(node)} 
+                                  className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
+                              >
+                                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                      {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                      <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                                      <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>
+                                          {node.type}
+                                      </p>
+                                  </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                  <p className="text-white text-[11px] font-bold truncate">{node.name}</p>
-                                  <p className="text-[8px] font-black uppercase" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
-                                      {node.type}
-                                  </p>
-                              </div>
-                          </div>
-                      ))}
+                          ));
+                      })()}
                   </div>
               </>
           )}
