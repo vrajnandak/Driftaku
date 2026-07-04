@@ -91,7 +91,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
         linkLayerRef.current.clear();
 
         console.log("Drawing links:", stateRef.current.userLinks.length);
-        
+
         stateRef.current.userLinks.forEach(link => {
           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
           const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
@@ -265,6 +265,19 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
         setSelectedNodeId(null);
         return;
       }
+
+      const linkExists = stateRef.current.userLinks.some(
+        l => (l.sourceId === currentSelectedId && l.targetId === targetId) || 
+             (l.sourceId === targetId && l.targetId === currentSelectedId)
+      );
+
+      if (linkExists) {
+        alert("This connection already exists!");
+        stateRef.current.selectedNodeId = null;
+        setSelectedNodeId(null);
+        return;
+      }
+      
       const nodeA = levelData.nodes.find(n => n.id === currentSelectedId);
       const nodeB = levelData.nodes.find(n => n.id === targetId);
       const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(currentSelectedId);
