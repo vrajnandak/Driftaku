@@ -351,11 +351,28 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     }
   };
 
+  const toggleSidebar = () => {
+    const newState = !isSidebarOpen;
+    setIsSidebarOpen(newState);
+
+    // Force PIXI and Viewport to update after the CSS transition (300ms)
+    setTimeout(() => {
+        if (appRef.current) {
+            appRef.current.resize();
+        }
+        if (viewportRef.current && containerRef.current) {
+            viewportRef.current.screenWidth = containerRef.current.clientWidth;
+            viewportRef.current.screenHeight = containerRef.current.clientHeight;
+            // Re-center so the graph doesn't look like it shifted
+            viewportRef.current.moveCenter(1000, 1000);
+        }
+    }, 350); 
+  };
+
   return (
     <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       {/* SIDEBAR */}
-      {/* SIDEBAR: Conditionally rendered with width transition */}
-      <div className={`h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20 transition-all duration-500 ${isSidebarOpen ? 'w-72' : 'w-0'}`}>
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
           {/* Only show content if open */}
           {isSidebarOpen && (
               <>
@@ -365,7 +382,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
                       </div>
                       {/* HIDE BUTTON */}
-                      <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white">
+                      <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                       </button>
                   </div>
@@ -391,8 +408,8 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
       {/* SHOW BUTTON (Visible when sidebar is closed) */}
       {!isSidebarOpen && (
           <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-2 rounded-lg transition-all transition duration-500 shadow-lg hover:bg-indigo-500"
+              onClick={toggleSidebar}
+              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
           >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
           </button>
