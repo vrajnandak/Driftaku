@@ -1,6 +1,12 @@
 import type * as d3 from 'd3-force';
 import type * as PIXI from 'pixi.js';
 
+
+export interface UserLink {
+  sourceId: string;
+  targetId: string;
+}
+
 export interface GameNode extends d3.SimulationNodeDatum {
   id: string;
   type: string;

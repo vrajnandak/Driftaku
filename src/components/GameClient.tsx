@@ -1,183 +1,747 @@
+// import React, { useEffect, useRef, useState } from 'react';
+// import * as PIXI from 'pixi.js';
+// import { Viewport } from 'pixi-viewport';
+// import * as d3 from 'd3-force';
+// import { NODE_COLORS, type GameNode, type LevelData } from '../types/game';
+
+// interface Props {
+//   levelData: LevelData;
+//   onWin: (time: number) => void;
+// }
+
+// const GameClient: React.FC<Props> = ({ levelData, onWin }) => {
+//   const containerRef = useRef<HTMLDivElement>(null);
+//   const appRef = useRef<PIXI.Application | null>(null);
+  
+//   // --- GAME STATE ---
+//   const [workspaceNodes, setWorkspaceNodes] = useState<GameNode[]>([]);
+//   const [warehouseNodes, setWarehouseNodes] = useState<GameNode[]>([]);
+//   const [userLinks, setUserLinks] = useState<{sourceId: string, targetId: string}[]>([]);
+//   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+//   const [tool, setTool] = useState<'select' | 'link'>('select');
+//   const [isWon, setIsWon] = useState(false);
+//   const [seconds, setSeconds] = useState(0);
+
+//   const stateRef = useRef({
+//     workspaceNodes: [] as GameNode[],
+//     userLinks: [] as {sourceId: string, targetId: string}[],
+//     startTime: Date.now(),
+//     isWon: false
+//   });
+
+//   // --- INITIALIZATION ---
+//   useEffect(() => {
+//     // Start and Target always begin in the Workspace
+//     const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
+//     const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
+//     const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
+
+//     setWorkspaceNodes([startNode, endNode]);
+//     setWarehouseNodes(others);
+//     stateRef.current.workspaceNodes = [startNode, endNode];
+//   }, [levelData]);
+
+//   useEffect(() => {
+//     if (!containerRef.current || workspaceNodes.length === 0) return;
+//     if (appRef.current) return; // Prevent double init
+
+//     const app = new PIXI.Application();
+//     const spriteMap: Record<string, PIXI.Container> = {};
+//     let simulation: d3.Simulation<GameNode, undefined>;
+
+//     const init = async () => {
+//       await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true });
+//       containerRef.current?.appendChild(app.canvas);
+//       appRef.current = app;
+
+//       const viewport = new Viewport({
+//         screenWidth: app.screen.width, screenHeight: app.screen.height,
+//         worldWidth: 2000, worldHeight: 2000, events: app.renderer.events
+//       });
+//       app.stage.addChild(viewport);
+//       viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
+
+//       const linkLayer = new PIXI.Graphics();
+//       const nodeLayer = new PIXI.Container();
+//       viewport.addChild(linkLayer, nodeLayer);
+
+//       // --- D3 SIMULATION ---
+//       simulation = d3.forceSimulation<GameNode>(stateRef.current.workspaceNodes)
+//         .force("charge", d3.forceManyBody().strength(-500))
+//         .force("collide", d3.forceCollide().radius(80))
+//         .force("x", d3.forceX(1000).strength(0.05))
+//         .force("y", d3.forceY(1000).strength(0.05));
+
+//       app.ticker.add(() => {
+//         // Draw User Links
+//         linkLayer.clear();
+//         stateRef.current.userLinks.forEach(link => {
+//           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
+//           const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
+//           if (s && t) {
+//             linkLayer.moveTo(s.x!, s.y!).lineTo(t.x!, t.y!)
+//               .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
+//           }
+//         });
+
+//         // Update Node Visuals
+//         stateRef.current.workspaceNodes.forEach(node => {
+//           const container = spriteMap[node.id];
+//           if (container) {
+//             container.x = node.x!;
+//             container.y = node.y!;
+//           } else {
+//             // Create Sprite if missing
+//             const newNodeCont = createNodeSprite(node, viewport, simulation);
+//             nodeLayer.addChild(newNodeCont);
+//             spriteMap[node.id] = newNodeCont;
+//           }
+//         });
+
+//         // Remove Sprites for nodes no longer in workspace
+//         Object.keys(spriteMap).forEach(id => {
+//           if (!stateRef.current.workspaceNodes.find(n => n.id === id)) {
+//             nodeLayer.removeChild(spriteMap[id]);
+//             delete spriteMap[id];
+//           }
+//         });
+//       });
+//     };
+
+//     const createNodeSprite = (
+//       node: GameNode,
+//       viewport: Viewport,
+//       simulation: d3.Simulation<GameNode, undefined>,
+//     ) => {
+//       const cont = new PIXI.Container();
+//       const bg = new PIXI.Graphics();
+//       const nodeColor = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0xffffff;
+      
+//       bg.circle(0, 0, 33).fill(0x0f172a).stroke({ width: 2, color: nodeColor });
+//       cont.addChild(bg);
+
+//       if (node.image) {
+//         PIXI.Assets.load(node.image).then(tex => {
+//           const s = new PIXI.Sprite(tex);
+//           s.anchor.set(0.5); s.width = s.height = 60;
+//           const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
+//           s.mask = m; cont.addChild(m, s);
+//         });
+//       }
+
+//       cont.eventMode = 'static';
+//       cont.cursor = 'pointer';
+      
+//       // Draggable Logic
+//       cont.on('pointerdown', (e) => {
+//         if (tool === 'link') {
+//             handleLinkAttempt(node.id);
+//         } else {
+//             // Drag Start
+//             cont.alpha = 0.5;
+//             simulation.alphaTarget(0.3).restart();
+//             node.fx = node.x;
+//             node.fy = node.y;
+//             const onMove = (event: any) => {
+//                 const pos = viewport.toWorld(event.global);
+//                 node.fx = pos.x;
+//                 node.fy = pos.y;
+//             };
+//             const onUp = () => {
+//                 cont.alpha = 1;
+//                 simulation.alphaTarget(0);
+//                 node.fx = null;
+//                 node.fy = null;
+//                 app.canvas.removeEventListener('pointermove', onMove);
+//                 window.removeEventListener('pointerup', onUp);
+//             };
+//             app.canvas.addEventListener('pointermove', onMove);
+//             window.addEventListener('pointerup', onUp);
+//         }
+//       });
+
+//       return cont;
+//     };
+
+//     init();
+//     return () => { app.destroy(true); simulation?.stop(); };
+//   }, [workspaceNodes]); // Re-init simulation when nodes change
+
+//   // --- GAME LOGIC ---
+
+//   const handleLinkAttempt = (targetId: string) => {
+//     if (!selectedNodeId) {
+//       setSelectedNodeId(targetId);
+//     } else {
+//       if (selectedNodeId === targetId) {
+//         setSelectedNodeId(null);
+//         return;
+//       }
+//       // Validate Connection
+//       const nodeA = levelData.nodes.find(n => n.id === selectedNodeId);
+//       if (nodeA?.connections.includes(targetId)) {
+//         const newLink = { sourceId: selectedNodeId, targetId };
+//         const updatedLinks = [...userLinks, newLink];
+//         setUserLinks(updatedLinks);
+//         stateRef.current.userLinks = updatedLinks;
+//         checkWinCondition(updatedLinks);
+//       } else {
+//         alert("These nodes are not related!");
+//       }
+//       setSelectedNodeId(null);
+//     }
+//   };
+
+//   const deployNode = (node: GameNode) => {
+//     const updatedWorkspace = [...workspaceNodes, { ...node, x: 1000, y: 1000 }];
+//     setWorkspaceNodes(updatedWorkspace);
+//     setWarehouseNodes(warehouseNodes.filter(n => n.id !== node.id));
+//     stateRef.current.workspaceNodes = updatedWorkspace;
+//   };
+
+//   const retractNode = (nodeId: string) => {
+//     if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
+//     const node = workspaceNodes.find(n => n.id === nodeId)!;
+//     setWarehouseNodes([...warehouseNodes, node]);
+//     setWorkspaceNodes(workspaceNodes.filter(n => n.id !== nodeId));
+//     setUserLinks(userLinks.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
+//     stateRef.current.workspaceNodes = stateRef.current.workspaceNodes.filter(n => n.id !== nodeId);
+//     stateRef.current.userLinks = stateRef.current.userLinks.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId);
+//   };
+
+//   const checkWinCondition = (links: {sourceId: string, targetId: string}[]) => {
+//     // Simple BFS to see if Start is connected to End via userLinks
+//     const adj = new Map<string, string[]>();
+//     links.forEach(l => {
+//         if (!adj.has(l.sourceId)) adj.set(l.sourceId, []);
+//         if (!adj.has(l.targetId)) adj.set(l.targetId, []);
+//         adj.get(l.sourceId)!.push(l.targetId);
+//         adj.get(l.targetId)!.push(l.sourceId);
+//     });
+
+//     const queue = [levelData.metadata.start_node];
+//     const visited = new Set([levelData.metadata.start_node]);
+//     while (queue.length > 0) {
+//         const curr = queue.shift()!;
+//         if (curr === levelData.metadata.end_node) {
+//             setIsWon(true);
+//             onWin((Date.now() - stateRef.current.startTime) / 1000);
+//             return;
+//         }
+//         (adj.get(curr) || []).forEach(neighbor => {
+//             if (!visited.has(neighbor)) {
+//                 visited.add(neighbor);
+//                 queue.push(neighbor);
+//             }
+//         });
+//     }
+//   };
+
+//   return (
+//     <div className="flex h-full w-full bg-slate-950 overflow-hidden">
+//       {/* SIDEBAR: WAREHOUSE */}
+//       <div className="w-80 h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-xl z-20">
+//         <div className="p-4 border-b border-white/10">
+//           <h2 className="text-white font-bold uppercase tracking-widest text-xs">Node Warehouse</h2>
+//           <p className="text-slate-500 text-[10px]">Click a node to deploy it to the workspace</p>
+//         </div>
+//         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+//           {warehouseNodes.map(node => (
+//             <div 
+//               key={node.id}
+//               onClick={() => deployNode(node)}
+//               className="bg-slate-800 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-slate-700 hover:border-indigo-500/50 transition-all group"
+//             >
+//               <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-950 flex-shrink-0">
+//                 {node.image && <img src={node.image} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />}
+//               </div>
+//               <div className="flex-1 min-w-0">
+//                 <p className="text-white text-xs font-bold truncate">{node.name}</p>
+//                 <p className="text-[9px] uppercase font-black text-slate-500 tracking-tighter" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+//                     {node.type}
+//                 </p>
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+//       </div>
+
+//       {/* CANVAS AREA */}
+//       <div className="flex-1 relative">
+//         {/* Tool Overlay */}
+//         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1 rounded-2xl border border-white/10 backdrop-blur-md">
+//             <button 
+//                 onClick={() => setTool('select')}
+//                 className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tool === 'select' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+//             >
+//                 Move Tool
+//             </button>
+//             <button 
+//                 onClick={() => setTool('link')}
+//                 className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tool === 'link' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+//             >
+//                 Link Tool {selectedNodeId && "(Select 2nd Node)"}
+//             </button>
+//         </div>
+
+//         {/* Right-Click / Context Help */}
+//         <div className="absolute top-4 right-4 z-30 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+//             {tool === 'link' ? "Click two nodes to create an edge" : "Drag nodes to organize"}
+//         </div>
+
+//         {/* PIXI CONTAINER */}
+//         <div ref={containerRef} className="w-full h-full" />
+
+//         {/* Workspace List (Retraction UI) */}
+//         <div className="absolute bottom-4 left-4 z-30 flex gap-2 overflow-x-auto max-w-[80%] pb-2 px-2">
+//             {workspaceNodes.map(node => (
+//                 <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-2 pr-1 py-1 rounded-lg flex items-center gap-2 whitespace-nowrap">
+//                     <span className="text-[10px] text-white font-medium">{node.name}</span>
+//                     {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
+//                         <button 
+//                             onClick={() => retractNode(node.id)}
+//                             className="w-4 h-4 rounded bg-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition"
+//                         >
+//                             ×
+//                         </button>
+//                     )}
+//                 </div>
+//             ))}
+//         </div>
+
+//         {isWon && <VictoryModal onNext={() => window.location.reload()} />}
+//       </div>
+//     </div>
+//   );
+// };
+
+// const VictoryModal = ({ onNext }: { onNext: () => void }) => (
+//     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+//       <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl">
+//         <h2 className="text-3xl font-black text-white mb-2 tracking-tighter">CONNECTION ESTABLISHED</h2>
+//         <p className="text-slate-400 mb-8 text-sm">The path is complete. You drifted perfectly.</p>
+//         <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
+//           Finish Level
+//         </button>
+//       </div>
+//     </div>
+//   );
+
+// export default GameClient;
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
-import { NODE_COLORS, type GameNode, type GameLink, type LevelData, type NodeVisuals } from '../types/game';
+import { NODE_COLORS, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
+import { getProxyUrl } from '../utils/image';
 
 interface Props {
   levelData: LevelData;
-  onWin: (finalTime: number) => void;
+  enhancedLevelData: LevelData;
+  onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ levelData, onWin }) => {
+const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [uiPath, setUiPath] = useState<string[]>([levelData.metadata.start_node]);
-  const [seconds, setSeconds] = useState(0);
+  
+  // Pixi/D3 Refs - These persist across renders
+  const appRef = useRef<PIXI.Application | null>(null);
+  const viewportRef = useRef<Viewport | null>(null);
+  const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
+  const spriteMap = useRef<Record<string, NodeVisuals>>({});
+  const nodeLayerRef = useRef<PIXI.Container | null>(null);
+  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
+
+  // React State
+  const [workspaceNodes, setWorkspaceNodes] = useState<GameNode[]>([]);
+  const [warehouseNodes, setWarehouseNodes] = useState<GameNode[]>([]);
+  const [userLinks, setUserLinks] = useState<UserLink[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [tool, setTool] = useState<'select' | 'link'>('select');
   const [isWon, setIsWon] = useState(false);
 
+  // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
-    currentNodeId: levelData.metadata.start_node,
-    pathTaken: [levelData.metadata.start_node],
-    endNodeId: levelData.metadata.end_node,
+    workspaceNodes: [] as GameNode[],
+    userLinks: [] as UserLink[],
+    tool: 'select' as 'select' | 'link',
+    selectedNodeId: null as string | null,
     startTime: Date.now()
   });
 
+  // 1. ONE-TIME INITIALIZATION
   useEffect(() => {
     if (!containerRef.current) return;
 
     const app = new PIXI.Application();
-    let simulation: d3.Simulation<GameNode, undefined>;
-    let timerInterval: number;
-
-    const init = async () => {
-      await app.init({
-        resizeTo: containerRef.current!,
-        backgroundColor: 0x020617,
-        antialias: true,
+    
+    const setup = async () => {
+      PIXI.Assets.setPreferences({
+        preferWorkers: false,
+        crossOrigin: 'anonymous',
+      })
+      await app.init({ 
+        resizeTo: containerRef.current!, 
+        backgroundColor: 0x020617, 
+        antialias: true 
       });
       containerRef.current?.appendChild(app.canvas);
+      appRef.current = app;
 
-      // Viewport setup
       const viewport = new Viewport({
         screenWidth: app.screen.width,
         screenHeight: app.screen.height,
         worldWidth: 2000,
         worldHeight: 2000,
-        events: app.renderer.events,
+        events: app.renderer.events
       });
       app.stage.addChild(viewport);
-      viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000).setZoom(0.7);
+      viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
+      viewportRef.current = viewport;
 
-      // Data Prep
-      const nodes: GameNode[] = levelData.nodes.map(n => ({ ...n, x: 1000, y: 1000 }));
-      const links: GameLink[] = [];
-      levelData.nodes.forEach(s => {
-        s.connections.forEach(tId => {
-          if (s.id < tId) {
-            const source = nodes.find(n => n.id === s.id);
-            const target = nodes.find(n => n.id === tId);
-            if (source && target) links.push({ source, target });
+      linkLayerRef.current = new PIXI.Graphics();
+      nodeLayerRef.current = new PIXI.Container();
+      viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
+
+      // Initialize Simulation
+      simulationRef.current = d3.forceSimulation<GameNode>([])
+        .force("charge", d3.forceManyBody().strength(-800))
+        .force("collide", d3.forceCollide().radius(80))
+        .force("x", d3.forceX(1000).strength(0.05))
+        .force("y", d3.forceY(1000).strength(0.05));
+
+      // Ticker Loop
+      app.ticker.add(() => {
+        if (!linkLayerRef.current) return;
+        
+        // Draw Links
+        linkLayerRef.current.clear();
+        stateRef.current.userLinks.forEach(link => {
+          const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
+          const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
+          if (s && t) {
+            linkLayerRef.current!.moveTo(s.x!, s.y!).lineTo(t.x!, t.y!)
+              .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
+          }
+        });
+
+        // Update Node Positions
+        stateRef.current.workspaceNodes.forEach(node => {
+          const visuals = spriteMap.current[node.id];
+          if (visuals) {
+            visuals.container.x = node.x!;
+            visuals.container.y = node.y!;
+            
+            // Highlight if selected in Link Mode
+            visuals.bg.clear()
+              .circle(0, 0, 33)
+              .fill(0x0f172a)
+              .stroke({ 
+                width: stateRef.current.selectedNodeId === node.id ? 4 : 2, 
+                color: stateRef.current.selectedNodeId === node.id ? 0xffffff : (NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0xffffff) 
+              });
           }
         });
       });
 
-      const linkLayer = new PIXI.Graphics();
-      const nodeLayer = new PIXI.Container();
-      viewport.addChild(linkLayer, nodeLayer);
-
-      const spriteMap: Record<string, NodeVisuals> = {};
-
-      // Create Nodes
-      nodes.forEach((node) => {
-        const container = new PIXI.Container();
-        const bg = new PIXI.Graphics();
-        const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
-        
-        container.addChild(bg, icon);
-        container.eventMode = 'static';
-        container.cursor = 'pointer';
-        container.on('pointerdown', () => handleNodeClick(node.id, nodes));
-
-        nodeLayer.addChild(container);
-        spriteMap[node.id] = { container, bg, icon };
-
-        if (node.image) {
-          PIXI.Assets.load(node.image).then((tex) => {
-            const s = new PIXI.Sprite(tex);
-            s.anchor.set(0.5); s.width = s.height = 60;
-            const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
-            s.mask = m; container.addChild(m, s);
-            icon.visible = false;
-          });
-        }
-      });
-
-      simulation = d3.forceSimulation<GameNode>(nodes)
-        .force("link", d3.forceLink<GameNode, GameLink>(links).id(d => d.id).distance(150))
-        .force("charge", d3.forceManyBody().strength(-700))
-        .force("center", d3.forceCenter(1000, 1000))
-        .force("collide", d3.forceCollide().radius(80));
-
-      // Timer update
-      timerInterval = window.setInterval(() => {
-        if (!isWon) setSeconds((Date.now() - stateRef.current.startTime) / 1000);
-      }, 100);
-
-      // Main Render Ticker
-      let elapsed = 0;
-      app.ticker.add((ticker) => {
-        elapsed += ticker.deltaTime;
-        const pulse = Math.sin(elapsed * 0.1) * 5 + 5; // For Target node
-
-        linkLayer.clear();
-        links.forEach((link) => {
-          const isPath = stateRef.current.pathTaken.includes(link.source.id) && stateRef.current.pathTaken.includes(link.target.id);
-          linkLayer.moveTo(link.source.x!, link.source.y!).lineTo(link.target.x!, link.target.y!)
-            .stroke({ width: isPath ? 6 : 2, color: isPath ? 0x6366f1 : 0x1e293b, alpha: isPath ? 1 : 0.4 });
-        });
-
-        nodes.forEach((node) => {
-          const { container, bg } = spriteMap[node.id];
-          container.x = node.x!; container.y = node.y!;
-          
-          const isCurrent = node.id === stateRef.current.currentNodeId;
-          const isTarget = node.id === stateRef.current.endNodeId;
-          const nodeColor = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0xffffff;
-
-          bg.clear()
-            .circle(0, 0, isTarget ? 35 + pulse : 33)
-            .fill(0x0f172a)
-            .stroke({ 
-              width: (isCurrent || isTarget) ? 5 : 2, 
-              color: isCurrent ? 0xffffff : (isTarget ? NODE_COLORS.Target : nodeColor),
-              alignment: 0 
-            });
-        });
-      });
+      // Load Initial Nodes
+      const startNode = enhancedLevelData.nodes.find(n => n.id === enhancedLevelData.metadata.start_node)!;
+      const endNode = enhancedLevelData.nodes.find(n => n.id === enhancedLevelData.metadata.end_node)!;
+      const others = enhancedLevelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
+      
+      setWorkspaceNodes([startNode, endNode]);
+      setWarehouseNodes(others);
     };
 
-    const handleNodeClick = (clickedId: string, allNodes: GameNode[]) => {
-      const current = allNodes.find(n => n.id === stateRef.current.currentNodeId);
-      if (current?.connections.includes(clickedId)) {
-        stateRef.current.currentNodeId = clickedId;
-        stateRef.current.pathTaken.push(clickedId);
-        setUiPath([...stateRef.current.pathTaken]);
-        if (clickedId === stateRef.current.endNodeId) {
-          setIsWon(true);
-          onWin((Date.now() - stateRef.current.startTime) / 1000);
-        }
+    setup();
+
+    return () => {
+      app.destroy(true);
+    };
+  }, [enhancedLevelData]);
+
+  // 2. SYNC EFFECT: Runs whenever workspaceNodes changes
+  useEffect(() => {
+    if (!simulationRef.current || !nodeLayerRef.current) return;
+
+    stateRef.current.workspaceNodes = workspaceNodes;
+    simulationRef.current.nodes(workspaceNodes);
+    simulationRef.current.alpha(1).restart();
+
+    // Add missing sprites
+    workspaceNodes.forEach(node => {
+      if (!spriteMap.current[node.id]) {
+        const visuals = createNodeSprite(node);
+        nodeLayerRef.current!.addChild(visuals.container);
+        spriteMap.current[node.id] = visuals;
       }
-    };
+    });
 
-    init();
-    return () => { 
-      app.destroy(true, { children: true, texture: true });
-      simulation?.stop();
-      clearInterval(timerInterval);
-    };
-  }, [levelData]);
+    // Remove old sprites
+    Object.keys(spriteMap.current).forEach(id => {
+      if (!workspaceNodes.find(n => n.id === id)) {
+        nodeLayerRef.current!.removeChild(spriteMap.current[id].container);
+        delete spriteMap.current[id];
+      }
+    });
+  }, [workspaceNodes]);
+
+  // Sync other refs
+  useEffect(() => {
+    stateRef.current.userLinks = userLinks;
+    stateRef.current.tool = tool;
+    stateRef.current.selectedNodeId = selectedNodeId;
+  }, [userLinks, tool, selectedNodeId]);
+
+  // 3. NODE CREATION LOGIC
+  const createNodeSprite = (node: GameNode): NodeVisuals => {
+    const container = new PIXI.Container();
+    const bg = new PIXI.Graphics();
+    const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
+    
+    container.addChild(bg, icon);
+    container.eventMode = 'static';
+    container.cursor = 'pointer';
+
+    container.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+      if (stateRef.current.tool === 'link') {
+        handleLinkAttempt(node.id);
+      } else {
+        node.fx = node.x;
+        node.fy = node.y;
+        // // Drag Logic
+        // const globalPos = e.global;
+        // const worldPos = viewportRef.current!.toWorld(globalPos);
+
+        const onMove = (event: PIXI.FederatedPointerEvent) => {
+          if(!viewportRef.current || !simulationRef.current || !event.global) return;
+          const movePos = viewportRef.current!.toWorld(event.global.x, event.global.y);
+          node.fx = movePos.x;
+          node.fy = movePos.y;
+          simulationRef.current?.alpha(0.3).restart();
+        };
+
+        const onUp = () => {
+          node.fx = null;
+          node.fy = null;
+          appRef.current?.stage.off('pointermove', onMove);
+          appRef.current?.stage.off('pointerup', onUp);
+        };
+        
+        appRef.current?.stage.on('pointermove', onMove);
+        appRef.current?.stage.on('pointerup', onUp);
+      }
+    });
+    
+    if (node.image) {
+      // node.image is now a Base64 string from Astro
+      PIXI.Assets.load(node.image).then(tex => {
+        const s = new PIXI.Sprite(tex);
+        s.anchor.set(0.5); 
+        s.width = s.height = 60;
+
+        const m = new PIXI.Graphics();
+        m.circle(0, 0, 30).fill(0xffffff);
+        
+        s.mask = m; 
+        container.addChild(m, s);
+        icon.visible = false;
+      }).catch(err => {
+        console.error("Base64 image failed to render:", err);
+      });
+    }
+
+    // if (node.image) {
+    //   const proxiedUrl = getProxyUrl(node.image);
+    //   PIXI.Assets.load({
+    //     src: proxiedUrl,
+    //     data: {
+    //       loadStrategy: 'image', // Forces image-based loading
+    //       'crossOrigin': 'anonymous' // Ensure CORS is handled
+    //     }
+    //   }).then(tex => {
+    //     const s = new PIXI.Sprite(tex);
+    //     s.anchor.set(0.5);
+    //     s.width = s.height = 60;
+
+    //     const m = new PIXI.Graphics()
+    //     m.circle(0, 0, 30).fill(0xffffff);
+    //     s.mask = m;
+    //     container.addChild(m, s);
+    //     icon.visible = false;
+    //   }).catch(err => {
+    //     console.error("Image failed to load:", proxiedUrl, err);
+    //     icon.visible = true; // Show placeholder if image fails
+    //   });
+    //   //   PIXI.Assets.load({
+    //   //     src: proxiedUrl,
+    //   //     loadStrategy: 'image', // Forces image-based loading
+    //   // }).then(tex => {
+    //   //     const s = new PIXI.Sprite(tex);
+    //   //     s.anchor.set(0.5); 
+    //   //     s.width = s.height = 60;
+    //   //     const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
+    //   //     s.mask = m; 
+    //   //     container.addChild(m, s);
+    //   //     icon.visible = false;
+    //   // }).catch(err => console.error("Image failed:", proxiedUrl));
+    // }
+
+    return { container, bg, icon };
+  };
+
+  // 4. HANDLERS
+  const handleLinkAttempt = (targetId: string) => {
+    if (!selectedNodeId) {
+      setSelectedNodeId(targetId);
+    } else {
+      if (selectedNodeId === targetId) {
+        setSelectedNodeId(null);
+        return;
+      }
+      const nodeA = levelData.nodes.find(n => n.id === selectedNodeId);
+      const nodeB = levelData.nodes.find(n => n.id === targetId);
+      const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(selectedNodeId);
+
+      if (isConnected) {
+        const newLink = { sourceId: selectedNodeId, targetId };
+        const updatedLinks = [...userLinks, newLink];
+        setUserLinks(updatedLinks);
+        checkWinCondition(updatedLinks);
+      } else {
+        alert(`No direct connection found between ${nodeA?.name || selectedNodeId} and ${nodeB?.name || targetId}!`);
+      }
+      setSelectedNodeId(null);
+    }
+  };
+
+  const deployNode = (node: GameNode) => {
+    setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100) }]);
+    setWarehouseNodes(prev => prev.filter(n => n.id !== node.id));
+  };
+
+  const retractNode = (nodeId: string) => {
+    if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
+    const node = workspaceNodes.find(n => n.id === nodeId)!;
+    setWarehouseNodes(prev => [...prev, node]);
+    setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
+    setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
+  };
+
+  const checkWinCondition = (links: {sourceId: string, targetId: string}[]) => {
+    const adj = new Map<string, string[]>();
+    links.forEach(l => {
+      if (!adj.has(l.sourceId)) adj.set(l.sourceId, []);
+      if (!adj.has(l.targetId)) adj.set(l.targetId, []);
+      adj.get(l.sourceId)!.push(l.targetId);
+      adj.get(l.targetId)!.push(l.sourceId);
+    });
+
+    const queue = [levelData.metadata.start_node];
+    const visited = new Set([levelData.metadata.start_node]);
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (curr === levelData.metadata.end_node) {
+        setIsWon(true);
+        onWin((Date.now() - stateRef.current.startTime) / 1000);
+        return;
+      }
+      (adj.get(curr) || []).forEach(neighbor => {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      });
+    }
+  };
 
   return (
-    <div className="relative w-full h-full bg-slate-950">
-      <div ref={containerRef} className="w-full h-full absolute inset-0" />
-      
-      {/* Dynamic Timer Overlay */}
-      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 font-mono text-xl text-white pointer-events-none">
-        {seconds.toFixed(1)}s
+    <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
+      {/* SIDEBAR */}
+      <div className="w-72 h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20">
+        <div className="p-5 border-b border-white/10 bg-slate-900/50">
+          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+          {warehouseNodes.map(node => (
+            <div 
+              key={node.id}
+              onClick={() => deployNode(node)}
+              className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all group active:scale-95"
+            >
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                    {node.type}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="absolute bottom-6 left-6 right-6 pointer-events-none">
-        <div className="flex gap-2 flex-wrap max-w-2xl mx-auto justify-center">
-            {Object.entries(NODE_COLORS).map(([type, color]) => (
-                <div key={type} className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-md border border-white/5">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: `#${color.toString(16)}` }}></div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">{type}</span>
+      {/* CANVAS AREA */}
+      <div className="flex-1 relative">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
+            <button 
+                onClick={() => setTool('select')}
+                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+            >
+                Move
+            </button>
+            <button 
+                onClick={() => setTool('link')}
+                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+            >
+                Link {selectedNodeId && "(!)"}
+            </button>
+        </div>
+
+        <div ref={containerRef} className="w-full h-full" />
+
+        {/* Workspace Quick-List */}
+        <div className="absolute bottom-6 left-6 z-30 flex gap-2 overflow-x-auto max-w-[80%] no-scrollbar">
+            {workspaceNodes.map(node => (
+                <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg">
+                    <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
+                    {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
+                        <button 
+                            onClick={() => retractNode(node.id)}
+                            className="w-5 h-5 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs"
+                        >
+                            ×
+                        </button>
+                    )}
                 </div>
             ))}
         </div>
+
+        {isWon && <VictoryModal onNext={() => window.location.reload()} />}
       </div>
     </div>
   );
 };
+
+const VictoryModal = ({ onNext }: { onNext: () => void }) => (
+    <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+      <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl">
+        <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+        </div>
+        <h2 className="text-3xl font-black text-white mb-2 tracking-tighter">SUCCESS</h2>
+        <p className="text-slate-400 mb-8 text-sm">Path validated. You have cleared this seed.</p>
+        <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg">
+          Continue
+        </button>
+      </div>
+    </div>
+  );
 
 export default GameClient;

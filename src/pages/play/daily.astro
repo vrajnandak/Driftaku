@@ -3,8 +3,18 @@ import Layout from '../../layouts/Layout.astro';
 import GameClient from '../../components/GameClient.tsx';
 import GameHeader from '../../components/game/GameHeader.astro';
 import levelData from '../../game_levels/daily_seed_1.json';
+import { getBase64Image } from '../../utils/imageLoader';
+
+const processedNodes = await Promise.all(levelData.nodes.map(async (node) => ({
+  ...node,
+  image: node.image ? await getBase64Image(node.image) : null
+})));
 
 const levelId = levelData.metadata.level;
+const enhancedLevelData = {
+    ...levelData,
+    nodes: processedNodes
+}
 ---
 
 <Layout title={`Daily Web #${levelId} | Driftaku`}>
@@ -18,7 +28,7 @@ const levelId = levelData.metadata.level;
             />
 
             <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
-                <GameClient client:only="react" levelData={levelData} onWin={(time) => {}} />
+                <GameClient client:only="react" levelData={levelData} enhancedLevelData={enhancedLevelData} onWin={(time) => {}} />
             </div>
             
             <!-- Result Overlay logic managed via React in GameClient, 
