@@ -32,6 +32,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'link'>('select');
   const [isWon, setIsWon] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -353,34 +354,52 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   return (
     <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       {/* SIDEBAR */}
-      <div className="w-72 h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20">
-        <div className="p-5 border-b border-white/10 bg-slate-900/50">
-          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
-          {warehouseNodes.map(node => (
-            <div 
-              key={node.id}
-              onClick={() => deployNode(node)}
-              className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all group active:scale-95"
-            >
-              <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
-                    {node.type}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* SIDEBAR: Conditionally rendered with width transition */}
+      <div className={`h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20 transition-all duration-500 ${isSidebarOpen ? 'w-72' : 'w-0'}`}>
+          {/* Only show content if open */}
+          {isSidebarOpen && (
+              <>
+                  <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
+                      <div>
+                          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
+                      </div>
+                      {/* HIDE BUTTON */}
+                      <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                      </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+                      {warehouseNodes.map(node => (
+                          <div key={node.id} onClick={() => deployNode(node)} className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                  {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                  <p className="text-white text-[11px] font-bold truncate">{node.name}</p>
+                                  <p className="text-[8px] font-black uppercase" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                                      {node.type}
+                                  </p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </>
+          )}
       </div>
 
+      {/* SHOW BUTTON (Visible when sidebar is closed) */}
+      {!isSidebarOpen && (
+          <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-2 rounded-lg transition-all transition duration-500 shadow-lg hover:bg-indigo-500"
+          >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+          </button>
+      )}
+
       {/* CANVAS AREA */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative transition-all duration-300">
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
             <button 
                 onClick={() => {setTool('select'); stateRef.current.tool='select';}}
