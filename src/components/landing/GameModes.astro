@@ -1,0 +1,96 @@
+---
+const modes = [
+    {
+        title: "Daily Challenge",
+        desc: "Everyone plays the same web. Resets in 14h.",
+        link: "/play/daily",
+        color: "indigo",
+        active: true,
+        gameStartDesc: "Play Now",
+        icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+    },
+    {
+        title: "Vs. The Bot",
+        desc: "Race against 'D-Force,' our AI pathfinder. Choose your difficulty.",
+        link: "/play/bot",
+        color: "slate",
+        active: true,
+        gameStartDesc: "Start Match",
+        icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+    },
+    {
+        title: "Vs. Friends",
+        desc: "Create a private lobby and race in real-time to see who connects the path first and who has more trivia.",
+        link: "/play/friends",
+        color: "emerald",
+        active: true,
+        gameStartDesc: "Invite Friends",
+        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+    }
+];
+---
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto px-4">
+    {modes.map(mode => (
+        <a 
+            href={mode.link} 
+            class={`
+                group relative flex flex-col items-center text-center p-8 rounded-3xl 
+                transition-all duration-500 border h-full overflow-hidden
+                ${mode.color === 'indigo' 
+                    ? 'bg-indigo-600 border-transparent shadow-2xl shadow-indigo-500/20 hover:bg-indigo-500 hover:-translate-y-2' 
+                    : 'bg-slate-900 border-white/5 shadow-xl hover:border-indigo-500/50 hover:-translate-y-2'
+                }
+            `}
+        >
+            <!-- Background Icon Decoration -->
+            <div class="absolute -top-4 -right-4 p-4 opacity-[0.05] group-hover:opacity-10 group-hover:scale-125 transition-all duration-700 pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={mode.icon} />
+                </svg>
+            </div>
+
+            <!-- Content -->
+            <div class={`
+                mb-5 p-4 rounded-2xl transition-colors duration-300
+                ${mode.color === 'indigo' ? 'bg-white/10' : 'bg-indigo-500/10 text-indigo-400'}
+            `}>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={mode.icon} />
+                </svg>
+            </div>
+
+            <h3 class="text-2xl font-black text-white mb-3 relative z-10 tracking-tight uppercase">
+                {mode.title}
+            </h3>
+            
+            <p class={`
+                ${mode.color === 'indigo' ? 'text-indigo-100' : 'text-slate-400'} 
+                text-sm leading-relaxed relative z-10 mb-8 flex-grow max-w-[240px]
+            `}>
+                {mode.desc}
+            </p>
+
+            <div class={`
+                inline-flex items-center px-6 py-2 rounded-full font-bold text-sm tracking-wide transition-all
+                ${mode.color === 'indigo' 
+                    ? 'bg-white text-indigo-600 group-hover:px-8' 
+                    : 'bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white group-hover:px-8'
+                }
+            `}>
+                {mode.gameStartDesc} 
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+            </div>
+        </a>
+    ))}
+</div>
+
+<style>
+    /* Ensure all cards in the row match height even if descriptions vary */
+    .grid {
+        display: grid;
+        align-items: stretch;
+    }
+</style>

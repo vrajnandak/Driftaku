@@ -1,0 +1,29 @@
+---
+interface Props {
+    players: string;
+    modes: string;
+}
+const { players, modes } = Astro.props;
+---
+<section class="mt-20 pt-20 border-t border-white/5">
+    <div class="max-w-3xl mx-auto text-center">
+        <h2 class="text-2xl font-bold text-white mb-6">Why play Driftaku?</h2>
+        <p class="text-slate-400 mb-8 leading-relaxed">
+            Unlike traditional trivia, Driftaku requires spatial logic and deep industry knowledge. By mapping relationships between thousands of anime titles, voice actors (seiyuu), and production studios, we've created a dynamic puzzle that never repeats. Join thousands of fans and start drifting today.
+        </p>
+        <div class="flex flex-wrap justify-center gap-12 opacity-80">
+            <div class="text-center">
+                <p class="text-3xl font-black text-white">{players}</p>
+                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">Active Drifters</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-black text-white">{modes}</p>
+                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">Game Modes</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-black text-white">24/7</p>
+                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">New Challenges</p>
+            </div>
+        </div>
+    </div>
+</section>
