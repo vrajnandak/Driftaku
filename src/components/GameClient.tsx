@@ -89,6 +89,9 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
         
         // Draw Links
         linkLayerRef.current.clear();
+
+        console.log("Drawing links:", stateRef.current.userLinks.length);
+        
         stateRef.current.userLinks.forEach(link => {
           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
           const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
@@ -162,6 +165,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   // Sync other refs
   useEffect(() => {
     stateRef.current.userLinks = userLinks;
+    console.log("Links updated. Total Links: ", userLinks.length);
     stateRef.current.tool = tool;
     stateRef.current.selectedNodeId = selectedNodeId;
   }, [userLinks, tool, selectedNodeId]);
@@ -197,6 +201,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+      
       if (stateRef.current.tool === 'link') {
         handleLinkAttempt(node.id);
       } else {
@@ -249,26 +254,41 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
 
   // 4. HANDLERS
   const handleLinkAttempt = (targetId: string) => {
-    if (!selectedNodeId) {
+    const currentSelectedId = stateRef.current.selectedNodeId;
+
+    if (!currentSelectedId) {
+      stateRef.current.selectedNodeId = targetId;
       setSelectedNodeId(targetId);
     } else {
-      if (selectedNodeId === targetId) {
+      if (currentSelectedId === targetId) {
+        stateRef.current.selectedNodeId = null;
         setSelectedNodeId(null);
         return;
       }
-      const nodeA = levelData.nodes.find(n => n.id === selectedNodeId);
+      const nodeA = levelData.nodes.find(n => n.id === currentSelectedId);
       const nodeB = levelData.nodes.find(n => n.id === targetId);
-      const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(selectedNodeId);
+      const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(currentSelectedId);
+
+      console.log("Attempting link:", { 
+        selected: stateRef.current.selectedNodeId, 
+        target: targetId,
+        tool: stateRef.current.tool 
+      });
 
       if (isConnected) {
-        const newLink = { sourceId: selectedNodeId, targetId };
-        const updatedLinks = [...userLinks, newLink];
+        const newLink = { sourceId: currentSelectedId, targetId };
+        const updatedLinks = [...stateRef.current.userLinks, newLink];
+
+        stateRef.current.userLinks = updatedLinks;
+        stateRef.current.selectedNodeId = null;
+        setSelectedNodeId(null);
         setUserLinks(updatedLinks);
         checkWinCondition(updatedLinks);
       } else {
-        alert(`No direct connection found between ${nodeA?.name || selectedNodeId} and ${nodeB?.name || targetId}!`);
+        alert(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`);
+        stateRef.current.selectedNodeId = null;
+        setSelectedNodeId(null);
       }
-      setSelectedNodeId(null);
     }
   };
 
@@ -282,10 +302,15 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     const node = workspaceNodes.find(n => n.id === nodeId)!;
     setWarehouseNodes(prev => [...prev, node]);
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
-    setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
+    setUserLinks(prev => {
+      const filtered = prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId);
+      stateRef.current.userLinks = filtered;
+      return filtered;
+    });
   };
 
   const checkWinCondition = (links: {sourceId: string, targetId: string}[]) => {
+    console.log("current active links:", links);
     const adj = new Map<string, string[]>();
     links.forEach(l => {
       if (!adj.has(l.sourceId)) adj.set(l.sourceId, []);
@@ -345,13 +370,13 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
       <div className="flex-1 relative">
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
             <button 
-                onClick={() => setTool('select')}
+                onClick={() => {setTool('select'); stateRef.current.tool='select';}}
                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
             >
                 Move
             </button>
             <button 
-                onClick={() => setTool('link')}
+                onClick={() => {setTool('link'); stateRef.current.tool='link';}}
                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
             >
                 Link {selectedNodeId && "(!)"}
