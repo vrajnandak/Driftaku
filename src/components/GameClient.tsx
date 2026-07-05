@@ -357,6 +357,15 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     setIsSidebarOpen(newState);
   };
 
+  const handleZoom = (direction: 'in' | 'out') => {
+    if (!viewportRef.current) return;
+    const factor = direction === 'in' ? 1.2 : 0.8;
+    viewportRef.current.animate({
+      scale: viewportRef.current.scale.x * factor,
+      time: 200,
+    });
+  };
+
   return (
     <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       {/* SIDEBAR */}
@@ -447,7 +456,19 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Elapsed</p>
             <p className="text-xl font-mono text-white font-bold">{timerDisplay}</p>
           </div>
-          <Legend />
+          {/* <Legend /> */}
+          <button 
+            onClick={() => handleZoom('in')}
+            className="bg-slate-900/90 border border-white/10 p-3 rounded-xl hover:bg-indigo-600 transition shadow-lg text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          </button>
+          <button 
+            onClick={() => handleZoom('out')}
+            className="bg-slate-900/90 border border-white/10 p-3 rounded-xl hover:bg-indigo-600 transition shadow-lg text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4"/></svg>
+          </button>
         </div>
 
         {/* Workspace Quick-List */}
@@ -475,17 +496,17 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   );
 };
 
-const Legend = () => (
-  <div className="absolute top-[88px] right-6 z-30 bg-slate-900/90 border border-white/10 backdrop-blur-md p-3 rounded-xl shadow-2xl flex flex-col gap-2">
-    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Node Legend</p>
-    {Object.entries(NODE_COLORS).map(([type, color]) => (
-      <div key={type} className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
-        <span className="text-[10px] text-slate-300 font-medium">{type}</span>
-      </div>
-    ))}
-  </div>
-);
+// const Legend = () => (
+//   <div className="absolute top-[88px] right-6 z-30 bg-slate-900/90 border border-white/10 backdrop-blur-md p-3 rounded-xl shadow-2xl flex flex-col gap-2">
+//     <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Node Legend</p>
+//     {Object.entries(NODE_COLORS).map(([type, color]) => (
+//       <div key={type} className="flex items-center gap-2">
+//         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
+//         <span className="text-[10px] text-slate-300 font-medium">{type}</span>
+//       </div>
+//     ))}
+//   </div>
+// );
 
 const VictoryModal = ({ onNext }: { onNext: () => void }) => (
     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
