@@ -9,13 +9,13 @@ import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 
 interface Props {
-  levelData: LevelData;
+  // levelData: LevelData;
   shortestPath: string[];
   enhancedLevelData: LevelData;
   onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelData, onWin }) => {
+const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Pixi/D3 Refs - These persist across renders
@@ -42,7 +42,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [activeInfo, setActiveInfo] = useState<{name: string, type: string, x: number, y: number} | null>(null);
   // This is already in your component
-  const [uiPath, setUiPath] = useState<string[]>([levelData.metadata.start_node]);
+  const [uiPath, setUiPath] = useState<string[]>([enhancedLevelData.metadata.start_node]);
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -93,6 +93,10 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
       // Ticker Loop
       app.ticker.add(() => {
         if (!linkLayerRef.current) return;
+
+        if(simulationRef.current) {
+          simulationRef.current!.tick();
+        }
         
         // Draw Links
         linkLayerRef.current.clear();
@@ -110,6 +114,9 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
 
         // Update Node Positions
         stateRef.current.workspaceNodes.forEach(node => {
+          if (node.fx!== null) {
+            console.log('Debug node:', node.id, ' is currently FIXED/LOCKED at fx:', node.fx, 'fy:', node.fy);
+          }
           const visuals = spriteMap.current[node.id];
           if(visuals) {
             visuals.container.x = node.x!;
@@ -148,13 +155,13 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
       if (!spriteMap.current[node.id]) {
         const handleInteraction = (node: GameNode, e: PIXI.FederatedPointerEvent) => {
           console.log("Current tool is: ", stateRef.current.tool, "Selected Node ID: ", stateRef.current.selectedNodeId, "Clicked Node ID: ", node.id);
+          console.log("Pointer down on: ", node.name, "(", node.id, ")");
           if (stateRef.current.tool === 'link') {
             handleLinkAttempt(node.id);
           } else {
             if (activeInfo !== null) return;
             showNodeInfo(node, spriteMap.current[node.id].container);
 
-            
             node.fx = node.x;
             node.fy = node.y;
 
@@ -169,12 +176,17 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
             const onUp = () => {
               node.fx = null;
               node.fy = null;
-              appRef.current?.stage.off('pointermove', onMove);
-              appRef.current?.stage.off('pointerup', onUp);
-            };
 
-            appRef.current?.stage.on('pointermove', onMove);
-            appRef.current?.stage.on('pointerup', onUp);
+              window.removeEventListener('pointermove', onMove);
+              window.removeEventListener('pointerup', onUp);
+              // console.log("Pointer up on: ", node.name, "(", node.id, ")");
+              // appRef.current?.stage.off('pointermove', onMove);
+              // appRef.current?.stage.off('pointerup', onUp);
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            // appRef.current?.stage.on('pointermove', onMove);
+            // appRef.current?.stage.on('pointerup', onUp);
           }
         };
         const visuals = createNodeSprite(node, handleInteraction);
@@ -246,8 +258,8 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
         return;
       }
       
-      const nodeA = levelData.nodes.find(n => n.id === currentSelectedId);
-      const nodeB = levelData.nodes.find(n => n.id === targetId);
+      const nodeA = enhancedLevelData.nodes.find(n => n.id === currentSelectedId);
+      const nodeB = enhancedLevelData.nodes.find(n => n.id === targetId);
       const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(currentSelectedId);
 
       console.log("Attempting link:", { 
@@ -279,7 +291,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
   };
 
   const retractNode = (nodeId: string) => {
-    if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
+    if (nodeId === enhancedLevelData.metadata.start_node || nodeId === enhancedLevelData.metadata.end_node) return;
     const node = workspaceNodes.find(n => n.id === nodeId)!;
     setWarehouseNodes(prev => [...prev, node]);
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
@@ -300,14 +312,14 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
       adj.get(l.targetId)!.push(l.sourceId);
     });
 
-    const queue: [string, string[]][] = [[levelData.metadata.start_node, [levelData.metadata.start_node]]];
-    const visited = new Set([levelData.metadata.start_node]);
+    const queue: [string, string[]][] = [[enhancedLevelData.metadata.start_node, [enhancedLevelData.metadata.start_node]]];
+    const visited = new Set([enhancedLevelData.metadata.start_node]);
     
     while (queue.length > 0) {
       // 2. Destructure the current node AND the path taken so far
       const [curr, path] = queue.shift()!;
       
-      if (curr === levelData.metadata.end_node) {
+      if (curr === enhancedLevelData.metadata.end_node) {
         // 3. Update the UI state with the final path
         const finalTime = ((Date.now() - stateRef.current.startTime) / 1000);
         if(timerRef.current) clearInterval(timerRef.current);
@@ -484,7 +496,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
                 {workspaceNodes.map(node => (
                     <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg">
                         <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
-                        {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
+                        {node.id !== enhancedLevelData.metadata.start_node && node.id !== enhancedLevelData.metadata.end_node && (
                             <button 
                                 onClick={() => retractNode(node.id)}
                                 className="w-5 h-5 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs"
@@ -503,7 +515,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
                 time={parseFloat(timerDisplay)} 
                 shortestPath={shortestPath} 
                 userPath={uiPath}
-                nodes={levelData.nodes}
+                nodes={enhancedLevelData.nodes}
             />
         )}
 
@@ -523,81 +535,5 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
     </div>
   );
 };
-
-// const LegendModal = ({ onClose }: { onClose: () => void }) => (
-//     <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
-//         <div className="bg-slate-900 border border-white/10 p-6 rounded-3xl shadow-2xl w-80 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-//             <div className="flex justify-between items-center mb-6">
-//                 <h3 className="text-white font-black uppercase tracking-widest text-xs">How to Play</h3>
-//                 <button onClick={onClose} className="text-slate-500 hover:text-white">✕</button>
-//             </div>
-            
-//             <div className="space-y-4 mb-6 text-[11px] text-slate-400">
-//                 <p>• <strong>Linking:</strong> Use the Link tool to connect related entities. Connections must exist in the database.</p>
-//                 <p>• <strong>Discovery:</strong> Clicking a node reveals its name but triggers a <strong>3-second movement lock</strong>. During this window, you can click other nodes to reveal them without penalty.</p>
-//                 <p>• <strong>Objective:</strong> Create a valid path of links from Start to Target.</p>
-//             </div>
-
-//             <div className="space-y-2 border-t border-white/10 pt-4">
-//                 <h4 className="text-white font-black uppercase tracking-widest text-[10px] mb-2">Node Legend</h4>
-//                 {Object.entries(NODE_COLORS).map(([type, color]) => (
-//                     <div key={type} className="flex items-center gap-3">
-//                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
-//                         <span className="text-[10px] text-slate-300 font-medium">{type}</span>
-//                     </div>
-//                 ))}
-//             </div>
-//         </div>
-//     </div>
-// );
-
-// const VictoryModal = ({ 
-//     onNext, 
-//     time, 
-//     shortestPath, 
-//     userPath, 
-//     nodes 
-// }: { 
-//     onNext: () => void, 
-//     time: number, 
-//     shortestPath: string[], 
-//     userPath: string[],
-//     nodes: GameNode[] 
-// }) => {
-//     const isOptimal = userPath.length === shortestPath.length;
-
-//     return (
-//         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-//             <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl shadow-2xl">
-//                 <div className="text-center mb-6">
-//                     <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">Connection Established</h2>
-//                     <p className="text-indigo-400 font-bold text-lg mt-2">{time.toFixed(1)} seconds</p>
-//                 </div>
-
-//                 <div className="space-y-4 mb-8">
-//                     <div className="flex justify-between text-[10px] text-slate-400 font-black uppercase tracking-widest">
-//                         <span>Your Drift: {userPath.length} nodes</span>
-//                         <span>Shortest: {shortestPath.length} nodes</span>
-//                     </div>
-                    
-//                     <div className={`p-4 rounded-xl border ${isOptimal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-//                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-//                             {isOptimal ? "Perfect Path" : "You took a detour"}
-//                         </p>
-//                         <p className="text-[11px] text-slate-300 font-medium">
-//                             {isOptimal 
-//                                 ? "You found the most efficient path through the web. Legendary status achieved." 
-//                                 : `You took ${userPath.length - shortestPath.length} extra steps. Try again for a cleaner drift!`}
-//                         </p>
-//                     </div>
-//                 </div>
-
-//                 <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
-//                     Return Home
-//                 </button>
-//             </div>
-//         </div>
-//     );
-// };
 
 export default GameClient;

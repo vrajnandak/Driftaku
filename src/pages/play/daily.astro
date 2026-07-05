@@ -30,7 +30,7 @@ const shortestPath = ["anime_11111", "char_51587", "va_96489", "char_81853", "an
             />
 
             <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
-                <GameClient client:only="react" levelData={levelData} shortestPath={shortestPath} enhancedLevelData={enhancedLevelData} onWin={(time) => {console.log("Final time:", time)}} />
+                <GameClient client:only="react" shortestPath={shortestPath} enhancedLevelData={enhancedLevelData} onWin={(time) => {console.log("Final time:", time)}} />
             </div>
             
             <!-- Result Overlay logic managed via React in GameClient, 
