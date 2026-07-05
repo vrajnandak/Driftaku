@@ -6,11 +6,12 @@ import { NODE_COLORS, type GameNode, type LevelData, type NodeVisuals, type User
 
 interface Props {
   levelData: LevelData;
+  shortestPath: string[];
   enhancedLevelData: LevelData;
   onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) => {
+const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelData, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Pixi/D3 Refs - These persist across renders
@@ -36,6 +37,8 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const [searchQuery, setSearchQuery] = useState("");
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [activeInfo, setActiveInfo] = useState<{name: string, type: string, x: number, y: number} | null>(null);
+  // This is already in your component
+  const [uiPath, setUiPath] = useState<string[]>([levelData.metadata.start_node]);
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -176,6 +179,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
 
   useEffect(() => {
     if (isWon) {
+      // return;
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -338,22 +342,49 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
       adj.get(l.targetId)!.push(l.sourceId);
     });
 
-    const queue = [levelData.metadata.start_node];
+    const queue: [string, string[]][] = [[levelData.metadata.start_node, [levelData.metadata.start_node]]];
     const visited = new Set([levelData.metadata.start_node]);
+    
     while (queue.length > 0) {
-      const curr = queue.shift()!;
+      // 2. Destructure the current node AND the path taken so far
+      const [curr, path] = queue.shift()!;
+      
       if (curr === levelData.metadata.end_node) {
+        // 3. Update the UI state with the final path
+        const finalTime = ((Date.now() - stateRef.current.startTime) / 1000);
+        if(timerRef.current) clearInterval(timerRef.current);
+        setTimerDisplay(finalTime.toFixed(1));
+        setUiPath(path);
         setIsWon(true);
-        onWin((Date.now() - stateRef.current.startTime) / 1000);
+        onWin(finalTime);
         return;
       }
+      
       (adj.get(curr) || []).forEach(neighbor => {
         if (!visited.has(neighbor)) {
           visited.add(neighbor);
-          queue.push(neighbor);
+          // 4. Push the neighbor AND the new path (existing path + neighbor)
+          queue.push([neighbor, [...path, neighbor]]);
         }
       });
     }
+
+    // const queue = [levelData.metadata.start_node];
+    // const visited = new Set([levelData.metadata.start_node]);
+    // while (queue.length > 0) {
+    //   const curr = queue.shift()!;
+    //   if (curr === levelData.metadata.end_node) {
+    //     setIsWon(true);
+    //     onWin((Date.now() - stateRef.current.startTime) / 1000);
+    //     return;
+    //   }
+    //   (adj.get(curr) || []).forEach(neighbor => {
+    //     if (!visited.has(neighbor)) {
+    //       visited.add(neighbor);
+    //       queue.push(neighbor);
+    //     }
+    //   });
+    // }
   };
 
   const toggleSidebar = () => {
@@ -525,7 +556,16 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
             </div>
         </div>
 
-        {isWon && <VictoryModal onNext={() => window.location.reload()} />}
+        {/* {isWon && <VictoryModal onNext={() => window.location.reload()} />} */}
+        {isWon && (
+            <VictoryModal 
+                onNext={() => window.location.reload()} 
+                time={parseFloat(timerDisplay)} 
+                shortestPath={shortestPath} 
+                userPath={uiPath}
+                nodes={levelData.nodes}
+            />
+        )}
 
         {isLegendOpen && <LegendModal onClose={() => setIsLegendOpen(false)} />}
       </div>
@@ -571,21 +611,70 @@ const LegendModal = ({ onClose }: { onClose: () => void }) => (
     </div>
 );
 
-const VictoryModal = ({ onNext }: { onNext: () => void }) => (
-    <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-      <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl">
-        <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-            </svg>
+const VictoryModal = ({ 
+    onNext, 
+    time, 
+    shortestPath, 
+    userPath, 
+    nodes 
+}: { 
+    onNext: () => void, 
+    time: number, 
+    shortestPath: string[], 
+    userPath: string[],
+    nodes: GameNode[] 
+}) => {
+    const isOptimal = userPath.length === shortestPath.length;
+
+    return (
+        <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+            <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl shadow-2xl">
+                <div className="text-center mb-6">
+                    <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">Connection Established</h2>
+                    <p className="text-indigo-400 font-bold text-lg mt-2">{time.toFixed(1)} seconds</p>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                    <div className="flex justify-between text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                        <span>Your Drift: {userPath.length} nodes</span>
+                        <span>Shortest: {shortestPath.length} nodes</span>
+                    </div>
+                    
+                    <div className={`p-4 rounded-xl border ${isOptimal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                            {isOptimal ? "Perfect Path" : "You took a detour"}
+                        </p>
+                        <p className="text-[11px] text-slate-300 font-medium">
+                            {isOptimal 
+                                ? "You found the most efficient path through the web. Legendary status achieved." 
+                                : `You took ${userPath.length - shortestPath.length} extra steps. Try again for a cleaner drift!`}
+                        </p>
+                    </div>
+                </div>
+
+                <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
+                    Continue
+                </button>
+            </div>
         </div>
-        <h2 className="text-3xl font-black text-white mb-2 tracking-tighter">SUCCESS</h2>
-        <p className="text-slate-400 mb-8 text-sm">Path validated. You have cleared this seed.</p>
-        <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg">
-          Continue
-        </button>
-      </div>
-    </div>
-  );
+    );
+};
+
+// const VictoryModal = ({ onNext }: { onNext: () => void }) => (
+//     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+//       <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl">
+//         <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+//             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+//                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+//             </svg>
+//         </div>
+//         <h2 className="text-3xl font-black text-white mb-2 tracking-tighter">SUCCESS</h2>
+//         <p className="text-slate-400 mb-8 text-sm">Path validated. You have cleared this seed.</p>
+//         <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg">
+//           Continue
+//         </button>
+//       </div>
+//     </div>
+//   );
 
 export default GameClient;
