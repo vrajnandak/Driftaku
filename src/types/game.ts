@@ -21,7 +21,7 @@ export interface GameLink extends d3.SimulationLinkDatum<GameNode> {
 }
 
 export interface LevelMetadata {
-  level: number;
+  level?: number;
   start_node: string;
   start_name: string;
   end_node: string;

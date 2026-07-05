@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
+import { createNodeSprite, updateNodeVisuals } from '../utils/pixiRenderer';
+import { initSimulation } from '../utils/simulation';
 import { NODE_COLORS, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
 
 interface Props {
@@ -84,11 +86,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
       viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
       // Initialize Simulation
-      simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-800))
-        .force("collide", d3.forceCollide().radius(80))
-        .force("x", d3.forceX(1000).strength(0.05))
-        .force("y", d3.forceY(1000).strength(0.05));
+      simulationRef.current = initSimulation([], []);
 
       // Ticker Loop
       app.ticker.add(() => {
@@ -111,18 +109,10 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
         // Update Node Positions
         stateRef.current.workspaceNodes.forEach(node => {
           const visuals = spriteMap.current[node.id];
-          if (visuals) {
+          if(visuals) {
             visuals.container.x = node.x!;
             visuals.container.y = node.y!;
-            
-            // Highlight if selected in Link Mode
-            visuals.bg.clear()
-              .circle(0, 0, 33)
-              .fill(0x0f172a)
-              .stroke({ 
-                width: stateRef.current.selectedNodeId === node.id ? 4 : 2, 
-                color: stateRef.current.selectedNodeId === node.id ? 0xffffff : (NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0xffffff) 
-              });
+            updateNodeVisuals(visuals.bg, node, stateRef.current.selectedNodeId === node.id, enhancedLevelData.metadata.end_node);
           }
         });
       });
@@ -154,7 +144,38 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
     // Add missing sprites
     workspaceNodes.forEach(node => {
       if (!spriteMap.current[node.id]) {
-        const visuals = createNodeSprite(node);
+        const handleInteraction = (node: GameNode, e: PIXI.FederatedPointerEvent) => {
+          console.log("Current tool is: ", stateRef.current.tool, "Selected Node ID: ", stateRef.current.selectedNodeId, "Clicked Node ID: ", node.id);
+          if (stateRef.current.tool === 'link') {
+            handleLinkAttempt(node.id);
+          } else {
+            if (activeInfo !== null) return;
+            showNodeInfo(node, spriteMap.current[node.id].container);
+
+            
+            node.fx = node.x;
+            node.fy = node.y;
+
+            const onMove = (event: PIXI.FederatedPointerEvent) => {
+              if(!viewportRef.current || !simulationRef.current || !event.global) return;
+              const movePos = viewportRef.current!.toWorld(event.global.x, event.global.y);
+              node.fx = movePos.x;
+              node.fy = movePos.y;
+              simulationRef.current?.alpha(0.3).restart();
+            };
+
+            const onUp = () => {
+              node.fx = null;
+              node.fy = null;
+              appRef.current?.stage.off('pointermove', onMove);
+              appRef.current?.stage.off('pointerup', onUp);
+            };
+
+            appRef.current?.stage.on('pointermove', onMove);
+            appRef.current?.stage.on('pointerup', onUp);
+          }
+        };
+        const visuals = createNodeSprite(node, handleInteraction);
         nodeLayerRef.current!.addChild(visuals.container);
         spriteMap.current[node.id] = visuals;
       }
@@ -179,7 +200,6 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
 
   useEffect(() => {
     if (isWon) {
-      // return;
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -197,67 +217,6 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isWon]); // Only re-run if isWon changes
-
-  // 3. NODE CREATION LOGIC
-  const createNodeSprite = (node: GameNode): NodeVisuals => {
-    const container = new PIXI.Container();
-    const bg = new PIXI.Graphics();
-    const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
-    
-    container.addChild(bg, icon);
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-
-    container.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-      if(activeInfo!==null) return;
-      
-      if (stateRef.current.tool === 'link') {
-        handleLinkAttempt(node.id);
-      } else {
-        showNodeInfo(node, container);
-        node.fx = node.x;
-        node.fy = node.y;
-
-        const onMove = (event: PIXI.FederatedPointerEvent) => {
-          if(!viewportRef.current || !simulationRef.current || !event.global) return;
-          const movePos = viewportRef.current!.toWorld(event.global.x, event.global.y);
-          node.fx = movePos.x;
-          node.fy = movePos.y;
-          simulationRef.current?.alpha(0.3).restart();
-        };
-
-        const onUp = () => {
-          node.fx = null;
-          node.fy = null;
-          appRef.current?.stage.off('pointermove', onMove);
-          appRef.current?.stage.off('pointerup', onUp);
-        };
-        
-        appRef.current?.stage.on('pointermove', onMove);
-        appRef.current?.stage.on('pointerup', onUp);
-      }
-    });
-    
-    if (node.image) {
-      // node.image is now a Base64 string from Astro
-      PIXI.Assets.load(node.image).then(tex => {
-        const s = new PIXI.Sprite(tex);
-        s.anchor.set(0.5); 
-        s.width = s.height = 60;
-
-        const m = new PIXI.Graphics();
-        m.circle(0, 0, 30).fill(0xffffff);
-        
-        s.mask = m; 
-        container.addChild(m, s);
-        icon.visible = false;
-      }).catch(err => {
-        console.error("Base64 image failed to render:", err);
-      });
-    }
-
-    return { container, bg, icon };
-  };
 
   // 4. HANDLERS
   const handleLinkAttempt = (targetId: string) => {
@@ -430,7 +389,7 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
                     />
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+                    <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
                         {(() => {
                             const filteredNodes = warehouseNodes.filter(node => 
                                 node.name.toLowerCase().includes(searchQuery.toLowerCase())
