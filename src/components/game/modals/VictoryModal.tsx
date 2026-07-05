@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const VictoryModal: React.FC<Props> = ({ onNext, time, shortestPath, userPath }) => {
-    const isOptimal = userPath.length === shortestPath.length;
+    const isOptimal = shortestPath ? userPath.length === shortestPath.length : false;
 
     return (
         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">

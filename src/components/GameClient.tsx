@@ -101,7 +101,7 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
         // Draw Links
         linkLayerRef.current.clear();
 
-        console.log("Drawing links:", stateRef.current.userLinks.length);
+        // console.log("Drawing links:", stateRef.current.userLinks.length);
 
         stateRef.current.userLinks.forEach(link => {
           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
@@ -114,9 +114,6 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
 
         // Update Node Positions
         stateRef.current.workspaceNodes.forEach(node => {
-          if (node.fx!== null) {
-            console.log('Debug node:', node.id, ' is currently FIXED/LOCKED at fx:', node.fx, 'fy:', node.fy);
-          }
           const visuals = spriteMap.current[node.id];
           if(visuals) {
             visuals.container.x = node.x!;
@@ -154,8 +151,6 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     workspaceNodes.forEach(node => {
       if (!spriteMap.current[node.id]) {
         const handleInteraction = (node: GameNode, e: PIXI.FederatedPointerEvent) => {
-          console.log("Current tool is: ", stateRef.current.tool, "Selected Node ID: ", stateRef.current.selectedNodeId, "Clicked Node ID: ", node.id);
-          console.log("Pointer down on: ", node.name, "(", node.id, ")");
           if (stateRef.current.tool === 'link') {
             handleLinkAttempt(node.id);
           } else {
@@ -179,14 +174,9 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
 
               window.removeEventListener('pointermove', onMove);
               window.removeEventListener('pointerup', onUp);
-              // console.log("Pointer up on: ", node.name, "(", node.id, ")");
-              // appRef.current?.stage.off('pointermove', onMove);
-              // appRef.current?.stage.off('pointerup', onUp);
             };
             window.addEventListener('pointermove', onMove);
             window.addEventListener('pointerup', onUp);
-            // appRef.current?.stage.on('pointermove', onMove);
-            // appRef.current?.stage.on('pointerup', onUp);
           }
         };
         const visuals = createNodeSprite(node, handleInteraction);
