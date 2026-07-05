@@ -5,6 +5,8 @@ import * as d3 from 'd3-force';
 import { createNodeSprite, updateNodeVisuals } from '../utils/pixiRenderer';
 import { initSimulation } from '../utils/simulation';
 import { NODE_COLORS, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
+import { LegendModal } from './game/modals/LegendModal';
+import { VictoryModal } from './game/modals/VictoryModal';
 
 interface Props {
   levelData: LevelData;
@@ -522,80 +524,80 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
   );
 };
 
-const LegendModal = ({ onClose }: { onClose: () => void }) => (
-    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
-        <div className="bg-slate-900 border border-white/10 p-6 rounded-3xl shadow-2xl w-80 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-white font-black uppercase tracking-widest text-xs">How to Play</h3>
-                <button onClick={onClose} className="text-slate-500 hover:text-white">✕</button>
-            </div>
+// const LegendModal = ({ onClose }: { onClose: () => void }) => (
+//     <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
+//         <div className="bg-slate-900 border border-white/10 p-6 rounded-3xl shadow-2xl w-80 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+//             <div className="flex justify-between items-center mb-6">
+//                 <h3 className="text-white font-black uppercase tracking-widest text-xs">How to Play</h3>
+//                 <button onClick={onClose} className="text-slate-500 hover:text-white">✕</button>
+//             </div>
             
-            <div className="space-y-4 mb-6 text-[11px] text-slate-400">
-                <p>• <strong>Linking:</strong> Use the Link tool to connect related entities. Connections must exist in the database.</p>
-                <p>• <strong>Discovery:</strong> Clicking a node reveals its name but triggers a <strong>3-second movement lock</strong>. During this window, you can click other nodes to reveal them without penalty.</p>
-                <p>• <strong>Objective:</strong> Create a valid path of links from Start to Target.</p>
-            </div>
+//             <div className="space-y-4 mb-6 text-[11px] text-slate-400">
+//                 <p>• <strong>Linking:</strong> Use the Link tool to connect related entities. Connections must exist in the database.</p>
+//                 <p>• <strong>Discovery:</strong> Clicking a node reveals its name but triggers a <strong>3-second movement lock</strong>. During this window, you can click other nodes to reveal them without penalty.</p>
+//                 <p>• <strong>Objective:</strong> Create a valid path of links from Start to Target.</p>
+//             </div>
 
-            <div className="space-y-2 border-t border-white/10 pt-4">
-                <h4 className="text-white font-black uppercase tracking-widest text-[10px] mb-2">Node Legend</h4>
-                {Object.entries(NODE_COLORS).map(([type, color]) => (
-                    <div key={type} className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
-                        <span className="text-[10px] text-slate-300 font-medium">{type}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-);
+//             <div className="space-y-2 border-t border-white/10 pt-4">
+//                 <h4 className="text-white font-black uppercase tracking-widest text-[10px] mb-2">Node Legend</h4>
+//                 {Object.entries(NODE_COLORS).map(([type, color]) => (
+//                     <div key={type} className="flex items-center gap-3">
+//                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
+//                         <span className="text-[10px] text-slate-300 font-medium">{type}</span>
+//                     </div>
+//                 ))}
+//             </div>
+//         </div>
+//     </div>
+// );
 
-const VictoryModal = ({ 
-    onNext, 
-    time, 
-    shortestPath, 
-    userPath, 
-    nodes 
-}: { 
-    onNext: () => void, 
-    time: number, 
-    shortestPath: string[], 
-    userPath: string[],
-    nodes: GameNode[] 
-}) => {
-    const isOptimal = userPath.length === shortestPath.length;
+// const VictoryModal = ({ 
+//     onNext, 
+//     time, 
+//     shortestPath, 
+//     userPath, 
+//     nodes 
+// }: { 
+//     onNext: () => void, 
+//     time: number, 
+//     shortestPath: string[], 
+//     userPath: string[],
+//     nodes: GameNode[] 
+// }) => {
+//     const isOptimal = userPath.length === shortestPath.length;
 
-    return (
-        <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-            <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl shadow-2xl">
-                <div className="text-center mb-6">
-                    <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">Connection Established</h2>
-                    <p className="text-indigo-400 font-bold text-lg mt-2">{time.toFixed(1)} seconds</p>
-                </div>
+//     return (
+//         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+//             <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl shadow-2xl">
+//                 <div className="text-center mb-6">
+//                     <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">Connection Established</h2>
+//                     <p className="text-indigo-400 font-bold text-lg mt-2">{time.toFixed(1)} seconds</p>
+//                 </div>
 
-                <div className="space-y-4 mb-8">
-                    <div className="flex justify-between text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                        <span>Your Drift: {userPath.length} nodes</span>
-                        <span>Shortest: {shortestPath.length} nodes</span>
-                    </div>
+//                 <div className="space-y-4 mb-8">
+//                     <div className="flex justify-between text-[10px] text-slate-400 font-black uppercase tracking-widest">
+//                         <span>Your Drift: {userPath.length} nodes</span>
+//                         <span>Shortest: {shortestPath.length} nodes</span>
+//                     </div>
                     
-                    <div className={`p-4 rounded-xl border ${isOptimal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-                            {isOptimal ? "Perfect Path" : "You took a detour"}
-                        </p>
-                        <p className="text-[11px] text-slate-300 font-medium">
-                            {isOptimal 
-                                ? "You found the most efficient path through the web. Legendary status achieved." 
-                                : `You took ${userPath.length - shortestPath.length} extra steps. Try again for a cleaner drift!`}
-                        </p>
-                    </div>
-                </div>
+//                     <div className={`p-4 rounded-xl border ${isOptimal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+//                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+//                             {isOptimal ? "Perfect Path" : "You took a detour"}
+//                         </p>
+//                         <p className="text-[11px] text-slate-300 font-medium">
+//                             {isOptimal 
+//                                 ? "You found the most efficient path through the web. Legendary status achieved." 
+//                                 : `You took ${userPath.length - shortestPath.length} extra steps. Try again for a cleaner drift!`}
+//                         </p>
+//                     </div>
+//                 </div>
 
-                <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
-                    Return Home
-                </button>
-            </div>
-        </div>
-    );
-};
+//                 <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
+//                     Return Home
+//                 </button>
+//             </div>
+//         </div>
+//     );
+// };
 
 export default GameClient;
