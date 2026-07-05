@@ -35,6 +35,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [activeInfo, setActiveInfo] = useState<{name: string, type: string, x: number, y: number} | null>(null);
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -204,10 +205,12 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+      if(activeInfo!==null) return;
       
       if (stateRef.current.tool === 'link') {
         handleLinkAttempt(node.id);
       } else {
+        showNodeInfo(node, container);
         node.fx = node.x;
         node.fy = node.y;
         // // Drag Logic
@@ -367,6 +370,28 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
     });
   };
 
+  const showNodeInfo = (node: GameNode, container: PIXI.Container) => {
+    if (tool !== 'select') return; // Only in Move mode
+
+    viewportRef.current!.pause = true; 
+    
+    // Calculate screen position for the UI
+    const screenPos = viewportRef.current!.toScreen(container.x, container.y);
+    
+    setActiveInfo({
+      name: node.name,
+      type: node.type,
+      x: screenPos.x,
+      y: screenPos.y
+    });
+
+    // Auto-disappear after 3 seconds
+    setTimeout(() => {
+      setActiveInfo(null);
+      viewportRef.current!.pause = false;
+    }, 3000);
+  };
+
   return (
     <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       {/* SIDEBAR */}
@@ -504,21 +529,20 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
 
         {isLegendOpen && <LegendModal onClose={() => setIsLegendOpen(false)} />}
       </div>
+
+      {/* 3-Second Node Info Modal */}
+      {activeInfo && (
+        <div 
+          className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200"
+          style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}
+        >
+          <p className="text-white font-bold text-xs">{activeInfo.name}</p>
+          <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">{activeInfo.type}</p>
+        </div>
+      )}
     </div>
   );
 };
-
-// const Legend = () => (
-//   <div className="absolute top-[88px] right-6 z-30 bg-slate-900/90 border border-white/10 backdrop-blur-md p-3 rounded-xl shadow-2xl flex flex-col gap-2">
-//     <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Node Legend</p>
-//     {Object.entries(NODE_COLORS).map(([type, color]) => (
-//       <div key={type} className="flex items-center gap-2">
-//         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
-//         <span className="text-[10px] text-slate-300 font-medium">{type}</span>
-//       </div>
-//     ))}
-//   </div>
-// );
 
 const LegendModal = ({ onClose }: { onClose: () => void }) => (
     <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
