@@ -165,9 +165,9 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
             node.fx = node.x;
             node.fy = node.y;
 
-            const onMove = (event: PIXI.FederatedPointerEvent) => {
-              if(!viewportRef.current || !simulationRef.current || !event.global) return;
-              const movePos = viewportRef.current!.toWorld(event.global.x, event.global.y);
+            const onMove = (event: PointerEvent) => {
+              if(!viewportRef.current || !simulationRef.current) return;
+              const movePos = viewportRef.current!.toWorld(event.clientX, event.clientY);
               node.fx = movePos.x;
               node.fy = movePos.y;
               simulationRef.current?.alpha(0.3).restart();
