@@ -217,9 +217,6 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
         showNodeInfo(node, container);
         node.fx = node.x;
         node.fy = node.y;
-        // // Drag Logic
-        // const globalPos = e.global;
-        // const worldPos = viewportRef.current!.toWorld(globalPos);
 
         const onMove = (event: PIXI.FederatedPointerEvent) => {
           if(!viewportRef.current || !simulationRef.current || !event.global) return;
@@ -368,23 +365,6 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
         }
       });
     }
-
-    // const queue = [levelData.metadata.start_node];
-    // const visited = new Set([levelData.metadata.start_node]);
-    // while (queue.length > 0) {
-    //   const curr = queue.shift()!;
-    //   if (curr === levelData.metadata.end_node) {
-    //     setIsWon(true);
-    //     onWin((Date.now() - stateRef.current.startTime) / 1000);
-    //     return;
-    //   }
-    //   (adj.get(curr) || []).forEach(neighbor => {
-    //     if (!visited.has(neighbor)) {
-    //       visited.add(neighbor);
-    //       queue.push(neighbor);
-    //     }
-    //   });
-    // }
   };
 
   const toggleSidebar = () => {
@@ -556,10 +536,9 @@ const GameClient: React.FC<Props> = ({ levelData, shortestPath, enhancedLevelDat
             </div>
         </div>
 
-        {/* {isWon && <VictoryModal onNext={() => window.location.reload()} />} */}
         {isWon && (
             <VictoryModal 
-                onNext={() => window.location.reload()} 
+                onNext={() => window.location.href='/'} 
                 time={parseFloat(timerDisplay)} 
                 shortestPath={shortestPath} 
                 userPath={uiPath}
@@ -653,28 +632,11 @@ const VictoryModal = ({
                 </div>
 
                 <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20">
-                    Continue
+                    Return Home
                 </button>
             </div>
         </div>
     );
 };
-
-// const VictoryModal = ({ onNext }: { onNext: () => void }) => (
-//     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-//       <div className="max-w-sm w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl">
-//         <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-//             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-//                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-//             </svg>
-//         </div>
-//         <h2 className="text-3xl font-black text-white mb-2 tracking-tighter">SUCCESS</h2>
-//         <p className="text-slate-400 mb-8 text-sm">Path validated. You have cleared this seed.</p>
-//         <button onClick={onNext} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg">
-//           Continue
-//         </button>
-//       </div>
-//     </div>
-//   );
 
 export default GameClient;
