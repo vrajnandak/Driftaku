@@ -34,6 +34,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   const [isWon, setIsWon] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
 
   // State Ref for Ticker (to avoid stale closures)
   const stateRef = useRef({
@@ -369,7 +370,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
   return (
     <div className="flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
           {/* Only show content if open */}
           {isSidebarOpen && (
               <>
@@ -392,30 +393,32 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
-                      {(() => {
-                          const filteredNodes = warehouseNodes.filter(node => 
-                              node.name.toLowerCase().includes(searchQuery.toLowerCase())
-                          );
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+                        {(() => {
+                            const filteredNodes = warehouseNodes.filter(node => 
+                                node.name.toLowerCase().includes(searchQuery.toLowerCase())
+                            );
 
-                          return filteredNodes.map(node => (
-                              <div 
-                                  key={node.id} 
-                                  onClick={() => deployNode(node)} 
-                                  className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
-                              >
-                                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                                      {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                      <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                                      <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>
-                                          {node.type}
-                                      </p>
-                                  </div>
-                              </div>
-                          ));
-                      })()}
+                            return filteredNodes.map(node => (
+                                <div 
+                                    key={node.id} 
+                                    onClick={() => deployNode(node)} 
+                                    className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
+                                >
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                        {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>
+                                            {node.type}
+                                        </p>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
                   </div>
               </>
           )}
@@ -446,6 +449,13 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
             >
                 Link {selectedNodeId && "(!)"}
             </button>
+            {/* NEW INFO BUTTON */}
+            <button 
+                onClick={() => setIsLegendOpen(true)}
+                className="px-4 py-2.5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white transition-all"
+            >
+                ⓘ
+            </button>
         </div>
 
         <div ref={containerRef} className="w-full h-full" />
@@ -473,7 +483,7 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
 
         {/* Workspace Quick-List */}
         <div className="absolute bottom-6 left-6 right-6 z-30">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pr-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 pr-2">
                 {workspaceNodes.map(node => (
                     <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg">
                         <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
@@ -491,6 +501,8 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
         </div>
 
         {isWon && <VictoryModal onNext={() => window.location.reload()} />}
+
+        {isLegendOpen && <LegendModal onClose={() => setIsLegendOpen(false)} />}
       </div>
     </div>
   );
@@ -507,6 +519,25 @@ const GameClient: React.FC<Props> = ({ levelData, enhancedLevelData, onWin }) =>
 //     ))}
 //   </div>
 // );
+
+const LegendModal = ({ onClose }: { onClose: () => void }) => (
+    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
+        <div className="bg-slate-900 border border-white/10 p-6 rounded-3xl shadow-2xl w-64" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-white font-black uppercase tracking-widest text-xs">Node Legend</h3>
+                <button onClick={onClose} className="text-slate-500 hover:text-white">✕</button>
+            </div>
+            <div className="space-y-3">
+                {Object.entries(NODE_COLORS).map(([type, color]) => (
+                    <div key={type} className="flex items-center gap-3">
+                        <div className="w-4 h-4 rounded-full border border-white/10" style={{ backgroundColor: `#${color.toString(16).padStart(6, '0')}` }}></div>
+                        <span className="text-xs text-slate-300 font-medium">{type}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
 
 const VictoryModal = ({ onNext }: { onNext: () => void }) => (
     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
