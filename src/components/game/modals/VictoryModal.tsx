@@ -4,13 +4,14 @@ import type { GameNode } from '../../../types/game';
 interface Props {
     onNext: () => void;
     time: number;
-    shortestPath: string[];
+    shortestPath?: string[];
     userPath: string[];
     nodes: GameNode[];
 }
 
 export const VictoryModal: React.FC<Props> = ({ onNext, time, shortestPath, userPath }) => {
     const isOptimal = shortestPath ? userPath.length === shortestPath.length : false;
+    const extraSteps = shortestPath ? userPath.length - shortestPath.length : 0;
 
     return (
         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
@@ -23,7 +24,7 @@ export const VictoryModal: React.FC<Props> = ({ onNext, time, shortestPath, user
                 <div className="space-y-4 mb-8">
                     <div className="flex justify-between text-[10px] text-slate-400 font-black uppercase tracking-widest">
                         <span>Your Drift: {userPath.length} nodes</span>
-                        <span>Shortest: {shortestPath.length} nodes</span>
+                        <span>Shortest: {shortestPath?.length || 0} nodes</span>
                     </div>
                     
                     <div className={`p-4 rounded-xl border ${isOptimal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
@@ -31,9 +32,9 @@ export const VictoryModal: React.FC<Props> = ({ onNext, time, shortestPath, user
                             {isOptimal ? "Perfect Path" : "You took a detour"}
                         </p>
                         <p className="text-[11px] text-slate-300 font-medium">
-                            {isOptimal 
-                                ? "You found the most efficient path through the web. Legendary status achieved." 
-                                : `You took ${userPath.length - shortestPath.length} extra steps. Try again for a cleaner drift!`}
+                            {isOptimal
+                                ? "You found the most efficient path through the web. Legendary status achieved."
+                                : `You took ${extraSteps} extra steps. Try again for a cleaner drift!`}
                         </p>
                     </div>
                 </div>

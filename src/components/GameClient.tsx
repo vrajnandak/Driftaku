@@ -10,7 +10,7 @@ import { VictoryModal } from './game/modals/VictoryModal';
 
 interface Props {
   // levelData: LevelData;
-  shortestPath: string[];
+  shortestPath?: string[];
   enhancedLevelData: LevelData;
   onWin: (time: number) => void;
 }

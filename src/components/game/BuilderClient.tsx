@@ -42,9 +42,10 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   
-  // Submission States
+  // --- SUBMISSION STATES ---
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
+  const [isPreparingSolve, setIsPreparingSolve] = useState(false);
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -73,7 +74,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const isSolvable = useMemo(() => {
     if (!startNodeId || !targetNodeId) return false;
     
-    // Build adjacency list using ONLY selected edges (intended path)
     const adj = new Map<string, string[]>();
     selectedEdges.forEach(edgeId => {
         const [u, v] = edgeId.split('::');
@@ -101,12 +101,51 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   }, [startNodeId, targetNodeId, selectedEdges]);
 
   // --- SUBMISSION & SYNC LOGIC ---
+  
+  // Helper ref to avoid stale closures in the Realtime listener
+  const prepareSolvePhaseRef = useRef<any>(null);
+  prepareSolvePhaseRef.current = (roomData: any) => {
+      // 1. Show the "Intercepting Web" Loader
+      setIsWaitingForOpponent(false);
+      setIsPreparingSolve(true);
+
+      // Artificial delay to make the transition feel deliberate and allow UI to render
+      setTimeout(() => {
+          const { playerId } = getLocalPlayerId();
+          const isOwner = roomData.owner_id === playerId;
+          
+          // 2. Extract the Opponent's lightweight graph
+          const opponentGraph = isOwner ? roomData.graph_b : roomData.graph_a;
+
+          if (opponentGraph) {
+              // 3. Rehydrate the opponent's graph with FULL node details (including Base64 images)
+              const fullOpponentNodes = builderData.nodes.filter(n => opponentGraph.nodeIds.includes(n.id));
+              
+              const readySolveData = {
+                  metadata: opponentGraph.metadata,
+                  nodes: fullOpponentNodes,
+                  intendedPath: opponentGraph.intendedPath
+              };
+
+              // 4. Save to LocalStorage as our "JSON File Hand-off"
+              localStorage.setItem(`driftaku_solve_${roomId}`, JSON.stringify(readySolveData));
+              
+              // 5. Room owner updates the global status so late-joiners know it's solving phase
+              if (isOwner && roomData.status !== 'solving') {
+                  supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
+              }
+
+              // 6. Redirect instantly to the Solve page
+              window.location.href = `/play/friends/${roomId}/solve`;
+          }
+      }, 2000); 
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     const { playerId } = getLocalPlayerId();
     
-    // 1. Identify Owner vs Guest
-    const { data: room } = await supabase.from('rooms').select('owner_id').eq('id', roomId).single();
+    const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     if (!room) {
         alert("Room error!");
         setIsSubmitting(false);
@@ -116,45 +155,37 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     const isOwner = room.owner_id === playerId;
     const column = isOwner ? 'graph_a' : 'graph_b';
 
-    // 2. MODIFIED: Create a lightweight payload (Node IDs + Target Path ONLY)
     const graphPayload = {
-        metadata: { 
-            start_node: startNodeId, 
-            end_node: targetNodeId 
-        },
-        nodeIds: workspace.map(n => n.id), // Only save the IDs!
-        intendedPath: selectedEdges        // Only save the edges they selected
+        metadata: { start_node: startNodeId, end_node: targetNodeId },
+        nodeIds: workspace.map(n => n.id), 
+        intendedPath: selectedEdges        
     };
 
-    // 3. Update the database with the lightweight graph
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     
     if (error) {
-        console.error(error);
         alert("Failed to submit graph.");
         setIsSubmitting(false);
         return;
     }
 
-    // 4. MODIFIED: Explicitly check if the OTHER player is already done
-    const { data: checkRoom } = await supabase.from('rooms').select('graph_a, graph_b').eq('id', roomId).single();
+    // Check if the OTHER player is already done
+    const { data: checkRoom } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     
     if (checkRoom?.graph_a && checkRoom?.graph_b) {
-        // Both are done! We force the status change to definitively trigger the redirect for both
-        await supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
-        window.location.href = `/play/friends/${roomId}/solve`;
+        prepareSolvePhaseRef.current(checkRoom);
     } else {
-        // We are first, show the waiting screen
+        setIsSubmitting(false);
         setIsWaitingForOpponent(true);
     }
   };
 
   useEffect(() => {
-    // MODIFIED: Listen specifically for the 'status' changing to 'solving' or both graphs existing
+    // Listen for the opponent finishing
     const channel = supabase.channel(`room_${roomId}_build`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
-          if (payload.new.status === 'solving' || (payload.new.graph_a && payload.new.graph_b)) {
-              window.location.href = `/play/friends/${roomId}/solve`;
+          if (payload.new.graph_a && payload.new.graph_b) {
+              prepareSolvePhaseRef.current(payload.new);
           }
       })
       .subscribe();
@@ -504,7 +535,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             </button>
             <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             
-            {/* SUBMIT BUTTON */}
             <button 
                 onClick={handleSubmit}
                 disabled={!isSolvable || isSubmitting}
@@ -541,7 +571,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         </div>
 
         {/* SUBMISSION INDICATOR (Not Solvable) */}
-        {!isSolvable && (
+        {!isSolvable && !isWaitingForOpponent && !isPreparingSolve && (
           <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
              <div className="bg-slate-900/90 text-slate-400 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-lg">
                 Status: <span className="text-rose-400 ml-1">Path Disconnected</span>
@@ -549,12 +579,16 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
           </div>
         )}
 
-        {/* WAITING OVERLAY */}
-        {isWaitingForOpponent && (
+        {/* WAITING / PREPARING OVERLAY */}
+        { (isWaitingForOpponent || isPreparingSolve) && (
             <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
                 <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Web Submitted!</h2>
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Waiting for opponent to finish...</p>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
+                    {isPreparingSolve ? 'Intercepting Web...' : 'Web Submitted!'}
+                </h2>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
+                    {isPreparingSolve ? "Downloading opponent's graph data" : "Waiting for opponent to finish..."}
+                </p>
             </div>
         )}
 
