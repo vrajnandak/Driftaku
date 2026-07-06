@@ -3,7 +3,8 @@
   "include": [
     ".astro/types.d.ts",
     "**/*",
-    "src/**/*"
+    "src/**/*",
+    "./worker-configuration.d.ts"
   ],
   "exclude": [
     "dist"
@@ -16,7 +17,9 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   }
 }

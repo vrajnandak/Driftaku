@@ -1,0 +1,25 @@
+---
+export const prerender = false;     //don't build this page statically since otherwise astro wouldn't what html file to build in advance
+import Layout from '../../../layouts/Layout.astro';
+import AdUnit from '../../../components/AdUnit.astro';
+import FriendsLobbyManager from '../../../components/friends/FriendsLobbyManager.tsx';
+
+// Astro handles the dynamic routing automatically
+const { roomId } = Astro.params;
+
+// You can enforce a 6-8 character alphanumeric rule here
+if (!roomId || !/^[A-Z0-9]{6,8}$/.test(roomId)) {
+  return Astro.redirect('/play/friends');
+}
+---
+
+<Layout title={`Room ${roomId} | Driftaku Multiplayer`}>
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Top Ad Placement -->
+        <AdUnit type="banner" class="mb-8 hidden md:flex" />
+
+        <!-- The Interactive React Manager -->
+        <FriendsLobbyManager client:only="react" roomId={roomId} />
+        
+    </main>
+</Layout>
