@@ -1,0 +1,36 @@
+---
+export const prerender = false;
+
+import Layout from '../../../../layouts/Layout.astro';
+import SolveClient from '../../../../components/game/SolveClient.tsx';
+import { supabase } from '../../../../lib/supabase';
+import { getBase64Image } from '../../../../utils/imageLoader';
+import levelData from '../../../../game_levels/daily_seed_1.json'; // The source of truth
+
+const { roomId } = Astro.params;
+
+// 1. Fetch Room Data
+const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+if (!room || !room.graph_a || !room.graph_b) return Astro.redirect('/play/friends');
+
+// 2. Identify the player and swap graphs
+// We need a way to know who is who. We'll handle ID detection on the client, 
+// but for SSR pre-loading, we prepare both or wait for client.
+// To keep it simple and fast, we'll pass the whole room and the full node library (Base64'd).
+
+const processedLibrary = await Promise.all(levelData.nodes.slice(0, 200).map(async (node) => ({
+  ...node,
+  image: node.image ? await getBase64Image(node.image) : null
+})));
+---
+
+<Layout title={`Solving - Room ${roomId}`}>
+    <div class="h-screen w-screen overflow-hidden bg-slate-950">
+        <SolveClient 
+            client:only="react" 
+            roomId={roomId} 
+            roomData={room} 
+            nodeLibrary={processedLibrary} 
+        />
+    </div>
+</Layout>

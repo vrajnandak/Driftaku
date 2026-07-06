@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
+import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, type GameNode, type NodeVisuals } from '../../types/game';
 
 interface Props {
@@ -39,7 +40,11 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
-  const [showLegend, setShowLegend] = useState(false); // NEW: Legend/Info Modal State
+  const [showLegend, setShowLegend] = useState(false);
+  
+  // Submission States
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -63,6 +68,100 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   useEffect(() => {
     stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges };
   }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges]);
+
+  // --- VALIDATION LOGIC ---
+  const isSolvable = useMemo(() => {
+    if (!startNodeId || !targetNodeId) return false;
+    
+    // Build adjacency list using ONLY selected edges (intended path)
+    const adj = new Map<string, string[]>();
+    selectedEdges.forEach(edgeId => {
+        const [u, v] = edgeId.split('::');
+        if (!adj.has(u)) adj.set(u, []);
+        if (!adj.has(v)) adj.set(v, []);
+        adj.get(u)!.push(v);
+        adj.get(v)!.push(u);
+    });
+
+    const queue = [startNodeId];
+    const visited = new Set([startNodeId]);
+
+    while (queue.length > 0) {
+        const curr = queue.shift()!;
+        if (curr === targetNodeId) return true;
+        
+        (adj.get(curr) || []).forEach(neighbor => {
+            if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+            }
+        });
+    }
+    return false;
+  }, [startNodeId, targetNodeId, selectedEdges]);
+
+  // --- SUBMISSION & SYNC LOGIC ---
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    const { playerId } = getLocalPlayerId();
+    
+    // 1. Identify Owner vs Guest
+    const { data: room } = await supabase.from('rooms').select('owner_id').eq('id', roomId).single();
+    if (!room) {
+        alert("Room error!");
+        setIsSubmitting(false);
+        return;
+    }
+    
+    const isOwner = room.owner_id === playerId;
+    const column = isOwner ? 'graph_a' : 'graph_b';
+
+    // 2. MODIFIED: Create a lightweight payload (Node IDs + Target Path ONLY)
+    const graphPayload = {
+        metadata: { 
+            start_node: startNodeId, 
+            end_node: targetNodeId 
+        },
+        nodeIds: workspace.map(n => n.id), // Only save the IDs!
+        intendedPath: selectedEdges        // Only save the edges they selected
+    };
+
+    // 3. Update the database with the lightweight graph
+    const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
+    
+    if (error) {
+        console.error(error);
+        alert("Failed to submit graph.");
+        setIsSubmitting(false);
+        return;
+    }
+
+    // 4. MODIFIED: Explicitly check if the OTHER player is already done
+    const { data: checkRoom } = await supabase.from('rooms').select('graph_a, graph_b').eq('id', roomId).single();
+    
+    if (checkRoom?.graph_a && checkRoom?.graph_b) {
+        // Both are done! We force the status change to definitively trigger the redirect for both
+        await supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
+        window.location.href = `/play/friends/${roomId}/solve`;
+    } else {
+        // We are first, show the waiting screen
+        setIsWaitingForOpponent(true);
+    }
+  };
+
+  useEffect(() => {
+    // MODIFIED: Listen specifically for the 'status' changing to 'solving' or both graphs existing
+    const channel = supabase.channel(`room_${roomId}_build`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
+          if (payload.new.status === 'solving' || (payload.new.graph_a && payload.new.graph_b)) {
+              window.location.href = `/play/friends/${roomId}/solve`;
+          }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId]);
+
 
   // --- FULLSCREEN & ZOOM ---
   useEffect(() => {
@@ -351,8 +450,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                     <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>{node.type}</p>
                   </div>
                 </div>
-
-                {/* MODIFIED: Side Bar Retract Button */}
                 {deployed && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
@@ -405,6 +502,17 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             >
                 Info
             </button>
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+            
+            {/* SUBMIT BUTTON */}
+            <button 
+                onClick={handleSubmit}
+                disabled={!isSolvable || isSubmitting}
+                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all 
+                  ${isSolvable ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+            >
+                {isSubmitting ? 'Sending...' : 'Submit'}
+            </button>
         </div>
 
         {/* INSTRUCTIONS & ZOOM CONTROLS */}
@@ -432,8 +540,49 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             </div>
         </div>
 
+        {/* SUBMISSION INDICATOR (Not Solvable) */}
+        {!isSolvable && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+             <div className="bg-slate-900/90 text-slate-400 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-lg">
+                Status: <span className="text-rose-400 ml-1">Path Disconnected</span>
+             </div>
+          </div>
+        )}
+
+        {/* WAITING OVERLAY */}
+        {isWaitingForOpponent && (
+            <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Web Submitted!</h2>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Waiting for opponent to finish...</p>
+            </div>
+        )}
+
         {/* PIXI CANVAS */}
         <div ref={containerRef} className="w-full h-full" />
+
+        {/* RETRACTION LIST */}
+        {workspace.length > 0 && (
+          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              {workspace.map(node => (
+                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
+                        <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
+                            {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
+                        </span>
+                      </div>
+                      <button 
+                          onClick={() => retractNode(node.id)}
+                          title="Remove from Web"
+                          className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
+                      >
+                          ×
+                      </button>
+                  </div>
+              ))}
+          </div>
+        )}
 
         {/* INFO MODAL */}
         {infoModalNode && (
@@ -461,7 +610,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                     </div>
                   </div>
                   
-                  {/* MODIFIED: Node Modal Retract/Close Buttons */}
                   <div className="flex gap-3 mt-6">
                     <button 
                         onClick={() => { retractNode(infoModalNode.id); setInfoModalNode(null); }}
@@ -480,7 +628,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
           </div>
         )}
 
-        {/* LEGEND / RULES MODAL */}
+        {/* LEGEND MODAL */}
         {showLegend && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -495,7 +643,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                           <h3 className="text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Tools</h3>
                           <ul className="space-y-3 text-sm text-slate-300">
                               <li><strong className="text-white">Move:</strong> Drag nodes to organize your web. Click a node without dragging to see its details.</li>
-                              <li><strong className="text-white">Toggle Edge:</strong> Connect nodes. Click a source node (turns amber), then click a valid destination to create a path.</li>
+                              <li><strong className="text-white">Toggle Edge:</strong> Connect nodes. Click a source node (turns amber), then click a valid destination to select that path (turns bright purple).</li>
                               <li><strong className="text-white">Start / Target:</strong> Assign the puzzle's beginning (White) and end (Cyan).</li>
                           </ul>
                       </section>
