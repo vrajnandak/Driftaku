@@ -33,11 +33,13 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   // Edge States
   const [availableEdges, setAvailableEdges] = useState<GraphEdge[]>([]);
   const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
-  const [edgeSourceId, setEdgeSourceId] = useState<string | null>(null); // For the 2-click edge tool
+  const [edgeSourceId, setEdgeSourceId] = useState<string | null>(null);
   
+  // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
+  const [showLegend, setShowLegend] = useState(false); // NEW: Legend/Info Modal State
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -58,7 +60,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     selectedEdges: [] as string[]
   });
 
-  // Keep stateRef synced
   useEffect(() => {
     stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges };
   }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges]);
@@ -123,7 +124,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         .force("y", d3.forceY(1000).strength(0.02));
 
       app.ticker.add(() => {
-        // 1. Draw Edges
+        // Draw Edges
         if (linkLayerRef.current) {
             linkLayerRef.current.clear();
             stateRef.current.availableEdges.forEach(edge => {
@@ -134,13 +135,13 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                                       .lineTo(edge.target.x, edge.target.y)
                                       .stroke({ 
                                           width: isSelected ? 5 : 2, 
-                                          color: isSelected ? 0x6366f1 : 0x334155, // Indigo vs Slate
+                                          color: isSelected ? 0x6366f1 : 0x334155,
                                           alpha: isSelected ? 1 : 0.4 
                                       });
             });
         }
 
-        // 2. Draw Nodes
+        // Draw Nodes
         stateRef.current.workspace.forEach(node => {
           const vis = spriteMap.current[node.id];
           if (vis && node.x != null && node.y != null) {
@@ -154,7 +155,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             let strokeWidth = 2;
 
             if (isEdgeSource) {
-                strokeColor = 0xf59e0b; // Amber (Actively linking)
+                strokeColor = 0xf59e0b; // Amber
                 strokeWidth = 6;
             } else if (isStart) {
                 strokeColor = NODE_COLORS.Start;
@@ -174,34 +175,27 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return () => app.destroy(true);
   }, []);
 
-  // --- SYNC WORKSPACE & CALCULATE EDGES ---
+  // --- SYNC WORKSPACE & EDGES ---
   useEffect(() => {
     if (!simulationRef.current || !nodeLayerRef.current) return;
 
-    // 1. Calculate Available Edges based on workspace nodes
     const currentEdges: GraphEdge[] = [];
     for (let i = 0; i < workspace.length; i++) {
         for (let j = i + 1; j < workspace.length; j++) {
             if (workspace[i].connections.includes(workspace[j].id)) {
-                // Unique ID independent of order
                 const edgeId = [workspace[i].id, workspace[j].id].sort().join('::');
                 currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
             }
         }
     }
     setAvailableEdges(currentEdges);
-
-    // 2. Clean up selectedEdges (remove edges where a node was deleted)
     setSelectedEdges(prev => prev.filter(edgeId => currentEdges.some(e => e.id === edgeId)));
 
-    // 3. Update Physics Engine
-    // Feed the edges to D3 so connected nodes group together naturally
     const d3Links = currentEdges.map(e => ({ source: e.source.id, target: e.target.id }));
     simulationRef.current.nodes(workspace);
     simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
     simulationRef.current.alpha(1).restart();
 
-    // 4. Sync Pixi Sprites
     workspace.forEach(node => {
       if (!spriteMap.current[node.id]) {
         const vis = createNodeSprite(node);
@@ -217,9 +211,9 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         delete spriteMap.current[id];
       }
     });
-  }, [workspace]); // Triggers when nodes are added/removed
+  }, [workspace]);
 
-  // --- NODE CREATION & INTERACTION LOGIC ---
+  // --- NODE SPRITE LOGIC ---
   const createNodeSprite = (node: GameNode): NodeVisuals => {
     const container = new PIXI.Container();
     const bg = new PIXI.Graphics();
@@ -244,25 +238,17 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       } 
       else if (currentTool === 'toggle_edge') {
           if (!stateRef.current.edgeSourceId) {
-              // Select First Node
               setEdgeSourceId(node.id);
           } else {
-              // Clicked same node again to cancel
               if (stateRef.current.edgeSourceId === node.id) {
-                  setEdgeSourceId(null);
-                  return;
+                  setEdgeSourceId(null); return;
               }
-              // Clicked Second Node -> Find Edge
               const edgeId = [stateRef.current.edgeSourceId, node.id].sort().join('::');
               const isValid = stateRef.current.availableEdges.some(e => e.id === edgeId);
-              
               if (isValid) {
-                  // Toggle the edge in the selected list
-                  setSelectedEdges(prev => 
-                      prev.includes(edgeId) ? prev.filter(id => id !== edgeId) : [...prev, edgeId]
-                  );
+                  setSelectedEdges(prev => prev.includes(edgeId) ? prev.filter(id => id !== edgeId) : [...prev, edgeId]);
               }
-              setEdgeSourceId(null); // Reset tool for next edge
+              setEdgeSourceId(null);
           }
       }
       else if (currentTool === 'move') {
@@ -272,7 +258,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
           const onMove = (event: PIXI.FederatedPointerEvent) => {
               if (!viewportRef.current) return;
               if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) hasDragged = true;
-              
               const pos = viewportRef.current.toWorld(event.global);
               node.fx = pos.x; node.fy = pos.y;
               simulationRef.current?.alpha(0.3).restart();
@@ -351,20 +336,32 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
           {filteredNodes.map(node => {
             const deployed = isDeployed(node.id);
             return (
-              <button 
-                key={node.id} onClick={() => !deployed && deployNode(node)} disabled={deployed}
-                className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left border 
-                  ${deployed ? 'bg-slate-950 border-white/5 opacity-40 grayscale cursor-not-allowed' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
+              <div 
+                key={node.id} 
+                onClick={() => !deployed && deployNode(node)}
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border 
+                  ${deployed ? 'bg-slate-900 border-white/10' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
               >
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                  {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-50' : 'bg-black'}`}>
+                    {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                  </div>
+                  <div className={`flex-1 min-w-0 ${deployed ? 'opacity-50' : ''}`}>
+                    <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>{node.type}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                  <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>{node.type}</p>
-                </div>
-                {deployed && <span className="text-[10px] text-slate-500 font-bold uppercase mr-2">In Web</span>}
-              </button>
+
+                {/* MODIFIED: Side Bar Retract Button */}
+                {deployed && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                    className="ml-2 px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                  >
+                    Retract
+                  </button>
+                )}
+              </div>
             )
           })}
         </div>
@@ -401,6 +398,13 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             >
                 Target
             </button>
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+            <button 
+                onClick={() => setShowLegend(true)}
+                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
+            >
+                Info
+            </button>
         </div>
 
         {/* INSTRUCTIONS & ZOOM CONTROLS */}
@@ -431,29 +435,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         {/* PIXI CANVAS */}
         <div ref={containerRef} className="w-full h-full" />
 
-        {/* RETRACTION LIST */}
-        {workspace.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2">
-              {workspace.map(node => (
-                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0">
-                      <div className="flex flex-col">
-                        <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
-                            {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
-                        </span>
-                      </div>
-                      <button 
-                          onClick={() => retractNode(node.id)}
-                          title="Remove from Web"
-                          className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
-                      >
-                          ×
-                      </button>
-                  </div>
-              ))}
-          </div>
-        )}
-
         {/* INFO MODAL */}
         {infoModalNode && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -468,6 +449,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                   <p className="text-[10px] font-black uppercase tracking-widest text-center mb-6" style={{color: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
                       {infoModalNode.type}
                   </p>
+                  
                   <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-white/5">
                     <div className="flex justify-between items-center border-b border-white/5 pb-2">
                         <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Workspace Links</span>
@@ -478,12 +460,69 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                         <span className="text-xs text-emerald-400 font-bold">{infoModalNode.connections?.length || 0}</span>
                     </div>
                   </div>
-                  <button onClick={() => setInfoModalNode(null)} className="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors">
-                      Close Profile
+                  
+                  {/* MODIFIED: Node Modal Retract/Close Buttons */}
+                  <div className="flex gap-3 mt-6">
+                    <button 
+                        onClick={() => { retractNode(infoModalNode.id); setInfoModalNode(null); }}
+                        className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 font-bold py-3 rounded-xl transition-colors text-sm"
+                    >
+                        Retract
+                    </button>
+                    <button 
+                        onClick={() => setInfoModalNode(null)}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+                    >
+                        Close
+                    </button>
+                  </div>
+              </div>
+          </div>
+        )}
+
+        {/* LEGEND / RULES MODAL */}
+        {showLegend && (
+          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                  <button onClick={() => setShowLegend(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                  
+                  <h2 className="text-3xl font-black text-white mb-6 uppercase tracking-tighter">Builder Guide</h2>
+                  
+                  <div className="space-y-6">
+                      <section>
+                          <h3 className="text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Tools</h3>
+                          <ul className="space-y-3 text-sm text-slate-300">
+                              <li><strong className="text-white">Move:</strong> Drag nodes to organize your web. Click a node without dragging to see its details.</li>
+                              <li><strong className="text-white">Toggle Edge:</strong> Connect nodes. Click a source node (turns amber), then click a valid destination to create a path.</li>
+                              <li><strong className="text-white">Start / Target:</strong> Assign the puzzle's beginning (White) and end (Cyan).</li>
+                          </ul>
+                      </section>
+                      
+                      <section>
+                          <h3 className="text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Node Colors</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                              {Object.entries(NODE_COLORS).map(([type, color]) => (
+                                  <div key={type} className="flex items-center gap-3 bg-slate-950 p-2 rounded-lg border border-white/5">
+                                      <div className="w-3 h-3 rounded-full shadow-md" style={{ backgroundColor: `#${color.toString(16)}` }}></div>
+                                      <span className="text-xs font-bold text-slate-300">{type}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </section>
+                  </div>
+
+                  <button 
+                      onClick={() => setShowLegend(false)}
+                      className="w-full mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+                  >
+                      Understood
                   </button>
               </div>
           </div>
         )}
+
       </div>
     </div>
   );
