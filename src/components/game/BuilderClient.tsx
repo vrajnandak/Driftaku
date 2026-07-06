@@ -2,51 +2,103 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
-import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, type GameNode, type NodeVisuals } from '../../types/game';
-import { isGraphSolvable } from '../../utils/graphValidator';
 
 interface Props {
   roomId: string;
-  builderData: any;
+  builderData: {
+    config: any;
+    nodes: GameNode[];
+  };
+}
+
+type ToolType = 'move' | 'set_start' | 'set_target' | 'toggle_edge';
+
+interface GraphEdge {
+  id: string;
+  source: GameNode;
+  target: GameNode;
 }
 
 const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { playerId } = getLocalPlayerId();
+  const mainContainerRef = useRef<HTMLDivElement>(null);
   
-  // States
-  const [warehouse, setWarehouse] = useState<GameNode[]>(builderData.nodes);
+  // --- STATE ---
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
-  const [links, setLinks] = useState<{sourceId: string, targetId: string}[]>([]);
-  const [tool, setTool] = useState<'move' | 'link'>('move');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(builderData.config.buildTime);
-  const [isReady, setIsReady] = useState(false);
-  const [isSolvable, setIsSolvable] = useState(false);
+  const [tool, setTool] = useState<ToolType>('move');
+  const [startNodeId, setStartNodeId] = useState<string | null>(null);
+  const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
+  
+  // Edge States
+  const [availableEdges, setAvailableEdges] = useState<GraphEdge[]>([]);
+  const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+  const [edgeSourceId, setEdgeSourceId] = useState<string | null>(null); // For the 2-click edge tool
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
 
-  // Refs for Pixi Sync
+  // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
   const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
+  const nodeLayerRef = useRef<PIXI.Container | null>(null);
+  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
   const spriteMap = useRef<Record<string, NodeVisuals>>({});
-  const nodeLayer = useRef<PIXI.Container | null>(null);
-  const linkLayer = useRef<PIXI.Graphics | null>(null);
+  const targetZoomRef = useRef<number | null>(null);
 
   const stateRef = useRef({
+    tool: 'move' as ToolType,
+    startNodeId: null as string | null,
+    targetNodeId: null as string | null,
+    edgeSourceId: null as string | null,
     workspace: [] as GameNode[],
-    links: [] as {sourceId: string, targetId: string}[],
-    tool: 'move' as 'move' | 'link',
-    selectedId: null as string | null
+    availableEdges: [] as GraphEdge[],
+    selectedEdges: [] as string[]
   });
 
-  // 1. Initialize Canvas
+  // Keep stateRef synced
   useEffect(() => {
-    if (!containerRef.current) return;
+    stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges };
+  }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges]);
+
+  // --- FULLSCREEN & ZOOM ---
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      mainContainerRef.current?.requestFullscreen().catch(err => console.error(err));
+    } else document.exitFullscreen();
+  };
+
+  const handleZoomIn = () => {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      const target = Math.min((targetZoomRef.current || vp.scale.x) * 1.5, 3);
+      targetZoomRef.current = target;
+      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
+  };
+
+  const handleZoomOut = () => {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      const target = Math.max((targetZoomRef.current || vp.scale.x) * 0.6, 0.2);
+      targetZoomRef.current = target;
+      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
+  };
+
+  // --- INITIALIZE CANVAS ---
+  useEffect(() => {
+    if (!containerRef.current || appRef.current) return;
     const app = new PIXI.Application();
     
     const init = async () => {
-      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617 });
+      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true });
       containerRef.current?.appendChild(app.canvas);
       appRef.current = app;
 
@@ -56,233 +108,383 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       });
       app.stage.addChild(viewport);
       viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
+      viewport.on('zoomed', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      linkLayer.current = new PIXI.Graphics();
-      nodeLayer.current = new PIXI.Container();
-      viewport.addChild(linkLayer.current, nodeLayer.current);
+      linkLayerRef.current = new PIXI.Graphics();
+      nodeLayerRef.current = new PIXI.Container();
+      viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
       simulationRef.current = d3.forceSimulation<GameNode>([])
         .force("charge", d3.forceManyBody().strength(-800))
         .force("collide", d3.forceCollide().radius(80))
-        .force("x", d3.forceX(1000).strength(0.05))
-        .force("y", d3.forceY(1000).strength(0.05));
+        .force("center", d3.forceCenter(1000, 1000))
+        .force("x", d3.forceX(1000).strength(0.02))
+        .force("y", d3.forceY(1000).strength(0.02));
 
       app.ticker.add(() => {
-        if (!linkLayer.current) return;
-        linkLayer.current.clear();
-        stateRef.current.links.forEach(l => {
-          const s = stateRef.current.workspace.find(n => n.id === l.sourceId);
-          const t = stateRef.current.workspace.find(n => n.id === l.targetId);
-          if (s && t) linkLayer.current!.moveTo(s.x!, s.y!).lineTo(t.x!, t.y!).stroke({ width: 4, color: 0x334155 });
-        });
+        // 1. Draw Edges
+        if (linkLayerRef.current) {
+            linkLayerRef.current.clear();
+            stateRef.current.availableEdges.forEach(edge => {
+                if (edge.source.x == null || edge.source.y == null || edge.target.x == null || edge.target.y == null) return;
+                
+                const isSelected = stateRef.current.selectedEdges.includes(edge.id);
+                linkLayerRef.current!.moveTo(edge.source.x, edge.source.y)
+                                      .lineTo(edge.target.x, edge.target.y)
+                                      .stroke({ 
+                                          width: isSelected ? 5 : 2, 
+                                          color: isSelected ? 0x6366f1 : 0x334155, // Indigo vs Slate
+                                          alpha: isSelected ? 1 : 0.4 
+                                      });
+            });
+        }
 
+        // 2. Draw Nodes
         stateRef.current.workspace.forEach(node => {
           const vis = spriteMap.current[node.id];
-          if (vis) {
-            vis.container.x = node.x!; vis.container.y = node.y!;
-            const isActive = stateRef.current.selectedId === node.id;
-            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a)
-                  .stroke({ width: isActive ? 4 : 2, color: isActive ? 0xffffff : (NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0xffffff) });
+          if (vis && node.x != null && node.y != null) {
+            vis.container.x = node.x; vis.container.y = node.y;
+
+            const isStart = stateRef.current.startNodeId === node.id;
+            const isTarget = stateRef.current.targetNodeId === node.id;
+            const isEdgeSource = stateRef.current.edgeSourceId === node.id;
+            
+            let strokeColor = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || 0x334155;
+            let strokeWidth = 2;
+
+            if (isEdgeSource) {
+                strokeColor = 0xf59e0b; // Amber (Actively linking)
+                strokeWidth = 6;
+            } else if (isStart) {
+                strokeColor = NODE_COLORS.Start;
+                strokeWidth = 5;
+            } else if (isTarget) {
+                strokeColor = NODE_COLORS.Target;
+                strokeWidth = 5;
+            }
+
+            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
           }
         });
       });
-
-      // Start by deploying Start and End nodes
-      const start = builderData.nodes.find((n:any) => n.id === builderData.metadata.start_node);
-      const end = builderData.nodes.find((n:any) => n.id === builderData.metadata.end_node);
-      if (start && end) {
-          deployNode(start);
-          deployNode(end);
-      }
     };
+
     init();
     return () => app.destroy(true);
   }, []);
 
-  // 2. Sync Logic
+  // --- SYNC WORKSPACE & CALCULATE EDGES ---
   useEffect(() => {
-    stateRef.current.workspace = workspace;
-    stateRef.current.links = links;
-    stateRef.current.tool = tool;
-    stateRef.current.selectedId = selectedId;
-    setIsSolvable(isGraphSolvable(builderData.metadata.start_node, builderData.metadata.end_node, links));
-    
-    if (simulationRef.current) {
-        simulationRef.current.nodes(workspace).alpha(1).restart();
-    }
+    if (!simulationRef.current || !nodeLayerRef.current) return;
 
+    // 1. Calculate Available Edges based on workspace nodes
+    const currentEdges: GraphEdge[] = [];
+    for (let i = 0; i < workspace.length; i++) {
+        for (let j = i + 1; j < workspace.length; j++) {
+            if (workspace[i].connections.includes(workspace[j].id)) {
+                // Unique ID independent of order
+                const edgeId = [workspace[i].id, workspace[j].id].sort().join('::');
+                currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
+            }
+        }
+    }
+    setAvailableEdges(currentEdges);
+
+    // 2. Clean up selectedEdges (remove edges where a node was deleted)
+    setSelectedEdges(prev => prev.filter(edgeId => currentEdges.some(e => e.id === edgeId)));
+
+    // 3. Update Physics Engine
+    // Feed the edges to D3 so connected nodes group together naturally
+    const d3Links = currentEdges.map(e => ({ source: e.source.id, target: e.target.id }));
+    simulationRef.current.nodes(workspace);
+    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
+    simulationRef.current.alpha(1).restart();
+
+    // 4. Sync Pixi Sprites
     workspace.forEach(node => {
       if (!spriteMap.current[node.id]) {
         const vis = createNodeSprite(node);
-        nodeLayer.current?.addChild(vis.container);
+        vis.container.x = node.x || 1000; vis.container.y = node.y || 1000;
+        nodeLayerRef.current!.addChild(vis.container);
         spriteMap.current[node.id] = vis;
       }
     });
-  }, [workspace, links, tool, selectedId]);
 
-  // 3. Timer Logic
-  useEffect(() => {
-    const timer = setInterval(() => {
-        setTimeLeft((prev: number) => {
-            if (prev <= 1) {
-                clearInterval(timer);
-                handleSubmit();
-                return 0;
-            }
-            return prev - 1;
-        });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    Object.keys(spriteMap.current).forEach(id => {
+      if (!workspace.find(n => n.id === id)) {
+        nodeLayerRef.current!.removeChild(spriteMap.current[id].container);
+        delete spriteMap.current[id];
+      }
+    });
+  }, [workspace]); // Triggers when nodes are added/removed
 
+  // --- NODE CREATION & INTERACTION LOGIC ---
   const createNodeSprite = (node: GameNode): NodeVisuals => {
     const container = new PIXI.Container();
     const bg = new PIXI.Graphics();
     const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
+    
     container.addChild(bg, icon);
     container.eventMode = 'static';
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e) => {
-        if (stateRef.current.tool === 'link') {
-            handleLink(node.id);
-        } else {
-            const onMove = (event: any) => {
-                const pos = viewportRef.current!.toWorld(event.global);
-                node.fx = pos.x; node.fy = pos.y;
-                simulationRef.current?.alpha(0.3).restart();
-            };
-            const onUp = () => {
-                node.fx = null; node.fy = null;
-                window.removeEventListener('pointermove', onMove);
-                window.removeEventListener('pointerup', onUp);
-            };
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onUp);
-        }
+      const currentTool = stateRef.current.tool;
+      
+      if (currentTool === 'set_start') {
+          setStartNodeId(node.id);
+          if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
+          setEdgeSourceId(null);
+      } 
+      else if (currentTool === 'set_target') {
+          setTargetNodeId(node.id);
+          if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
+          setEdgeSourceId(null);
+      } 
+      else if (currentTool === 'toggle_edge') {
+          if (!stateRef.current.edgeSourceId) {
+              // Select First Node
+              setEdgeSourceId(node.id);
+          } else {
+              // Clicked same node again to cancel
+              if (stateRef.current.edgeSourceId === node.id) {
+                  setEdgeSourceId(null);
+                  return;
+              }
+              // Clicked Second Node -> Find Edge
+              const edgeId = [stateRef.current.edgeSourceId, node.id].sort().join('::');
+              const isValid = stateRef.current.availableEdges.some(e => e.id === edgeId);
+              
+              if (isValid) {
+                  // Toggle the edge in the selected list
+                  setSelectedEdges(prev => 
+                      prev.includes(edgeId) ? prev.filter(id => id !== edgeId) : [...prev, edgeId]
+                  );
+              }
+              setEdgeSourceId(null); // Reset tool for next edge
+          }
+      }
+      else if (currentTool === 'move') {
+          const startX = e.global.x; const startY = e.global.y;
+          let hasDragged = false;
+
+          const onMove = (event: PIXI.FederatedPointerEvent) => {
+              if (!viewportRef.current) return;
+              if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) hasDragged = true;
+              
+              const pos = viewportRef.current.toWorld(event.global);
+              node.fx = pos.x; node.fy = pos.y;
+              simulationRef.current?.alpha(0.3).restart();
+          };
+
+          const onUp = () => {
+              node.fx = null; node.fy = null;
+              window.removeEventListener('pointerup', onUp);
+              appRef.current?.canvas.removeEventListener('pointermove', onMove as any);
+              if (!hasDragged) setInfoModalNode(node);
+          };
+
+          appRef.current?.canvas.addEventListener('pointermove', onMove as any);
+          window.addEventListener('pointerup', onUp);
+      }
     });
 
     if (node.image) {
       PIXI.Assets.load(node.image).then(tex => {
-        const s = new PIXI.Sprite(tex); s.anchor.set(0.5); s.width = s.height = 60;
+        const s = new PIXI.Sprite(tex);
+        s.anchor.set(0.5); s.width = s.height = 60;
         const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
         s.mask = m; container.addChild(m, s); icon.visible = false;
-      });
+      }).catch(e => console.error(e));
     }
     return { container, bg, icon };
   };
 
-  const handleLink = (targetId: string) => {
-      if (!selectedId) {
-          setSelectedId(targetId);
-      } else {
-          if (selectedId === targetId) { setSelectedId(null); return; }
-          const nodeA = builderData.nodes.find((n:any) => n.id === selectedId);
-          if (nodeA?.connections.includes(targetId)) {
-              setLinks(prev => [...prev, { sourceId: selectedId, targetId }]);
-          } else {
-              alert("These nodes are not related in the database!");
-          }
-          setSelectedId(null);
-      }
-  };
-
+  // --- UI HANDLERS ---
   const deployNode = (node: GameNode) => {
       if (workspace.length >= builderData.config.maxNodes) return;
-      setWorkspace(prev => [...prev, { ...node, x: 1000, y: 1000 }]);
-      setWarehouse(prev => prev.filter(n => n.id !== node.id));
+      const spawnX = 1000 + (Math.random() * 200 - 100);
+      const spawnY = 1000 + (Math.random() * 200 - 100);
+      setWorkspace(prev => [...prev, { ...node, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
   };
 
-  const handleSubmit = async () => {
-    setIsReady(true);
-    // Identify if I am Player A or B based on owner_id
-    const { data: room } = await supabase.from('rooms').select('owner_id').eq('id', roomId).single();
-    if (!room) {
-        alert("Room not found!");
-        window.location.href = '/play/friends';
-        return;
-    }
-    const isOwner = room.owner_id === playerId;
-    const column = isOwner ? 'graph_a' : 'graph_b';
-
-    await supabase.from('rooms').update({ 
-        [column]: { nodes: workspace, links: links, metadata: builderData.metadata } 
-    }).eq('id', roomId);
-
-    // Watch for opponent to finish
-    checkOpponentReady();
+  const retractNode = (nodeId: string) => {
+      setWorkspace(prev => prev.filter(n => n.id !== nodeId));
+      if (startNodeId === nodeId) setStartNodeId(null);
+      if (targetNodeId === nodeId) setTargetNodeId(null);
+      if (edgeSourceId === nodeId) setEdgeSourceId(null);
   };
 
-  const checkOpponentReady = async () => {
-      const channel = supabase.channel(`room_${roomId}_sync`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
-            if (payload.new.graph_a && payload.new.graph_b) {
-                window.location.href = `/play/friends/${roomId}/solve`;
-            }
-        })
-        .subscribe();
-  };
+  const isDeployed = (nodeId: string) => workspace.some(n => n.id === nodeId);
+  const filteredNodes = builderData.nodes.filter(n => 
+    n.name.toLowerCase().includes(searchQuery.toLowerCase()) || n.type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="flex h-full w-full">
-      {/* Sidebar */}
-      <div className="w-80 border-r border-white/10 bg-slate-900 flex flex-col z-20">
-        <div className="p-6 border-b border-white/10">
-          <h2 className="text-white font-black italic">WAREHOUSE</h2>
-          <div className="flex justify-between items-center mt-2">
-            <span className="text-[10px] text-slate-500 uppercase">Limit: {workspace.length}/{builderData.config.maxNodes}</span>
-            <span className={`text-[10px] font-bold uppercase ${isSolvable ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {isSolvable ? '● Solvable' : '○ Unconnected'}
-            </span>
+    <div ref={mainContainerRef} className="flex h-full w-full font-sans bg-slate-950">
+      
+      {/* SIDEBAR */}
+      <div className="w-80 h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20 shrink-0">
+        <div className="p-5 border-b border-white/10 bg-slate-900/50">
+          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic mb-4">Warehouse</h2>
+          
+          <div className="relative mb-4">
+            <input 
+              type="text" placeholder="Search anime, actors..." 
+              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          <div className="flex justify-between items-end">
+            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
+            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.config.maxNodes}</span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {warehouse.map(node => (
-            <button key={node.id} onClick={() => deployNode(node)} className="w-full flex items-center gap-3 bg-slate-800 p-2 rounded-xl hover:bg-indigo-600 transition-all text-left">
-              <div className="w-10 h-10 bg-black rounded-lg overflow-hidden">
-                {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-              </div>
-              <div className="min-w-0">
-                <p className="text-white text-[10px] font-bold truncate">{node.name}</p>
-                <p className="text-[8px] text-slate-400 uppercase">{node.type}</p>
-              </div>
-            </button>
-          ))}
+        
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+          {filteredNodes.length === 0 && <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>}
+          {filteredNodes.map(node => {
+            const deployed = isDeployed(node.id);
+            return (
+              <button 
+                key={node.id} onClick={() => !deployed && deployNode(node)} disabled={deployed}
+                className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left border 
+                  ${deployed ? 'bg-slate-950 border-white/5 opacity-40 grayscale cursor-not-allowed' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
+              >
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                  {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>{node.type}</p>
+                </div>
+                {deployed && <span className="text-[10px] text-slate-500 font-bold uppercase mr-2">In Web</span>}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Main Builder */}
-      <div className="flex-1 relative">
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl">
-            <button onClick={() => setTool('move')} className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tool === 'move' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Move</button>
-            <button onClick={() => setTool('link')} className={`px-4 py-2 rounded-xl text-xs font-bold transition ${tool === 'link' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Link</button>
+      {/* CANVAS AREA */}
+      <div className="flex-1 relative bg-slate-950 h-full overflow-hidden">
+        
+        {/* TOOLBAR */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
+            <button 
+                onClick={() => { setTool('move'); setEdgeSourceId(null); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'move' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+            >
+                Move
+            </button>
             <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             <button 
-                onClick={handleSubmit} 
-                disabled={!isSolvable || isReady}
-                className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition ${isSolvable ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+                onClick={() => { setTool('toggle_edge'); setEdgeSourceId(null); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'toggle_edge' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
             >
-                {isReady ? 'Waiting...' : 'Submit Web'}
+                Toggle Edge {edgeSourceId && "(Select 2nd)"}
+            </button>
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+            <button 
+                onClick={() => { setTool('set_start'); setEdgeSourceId(null); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_start' ? 'bg-white text-slate-900 shadow-lg shadow-white/20' : 'text-slate-400 hover:text-white'}`}
+            >
+                Start
+            </button>
+            <button 
+                onClick={() => { setTool('set_target'); setEdgeSourceId(null); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_target' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
+            >
+                Target
             </button>
         </div>
 
-        <div className="absolute top-6 right-6 z-30 bg-black/50 px-4 py-2 rounded-xl border border-white/10 font-mono text-xl text-white">
-            {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+        {/* INSTRUCTIONS & ZOOM CONTROLS */}
+        <div className="absolute top-6 right-6 z-30 flex gap-4 items-center">
+            <div className="hidden xl:block text-[10px] text-slate-400 uppercase tracking-widest font-bold text-right">
+                {tool === 'move' && "Drag nodes or click for info"}
+                {tool === 'toggle_edge' && (edgeSourceId ? "Click destination node" : "Click source node")}
+                {tool === 'set_start' && "Mark starting point"}
+                {tool === 'set_target' && "Mark destination"}
+            </div>
+            <div className="flex gap-2">
+                <button onClick={handleZoomOut} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
+                </button>
+                <button onClick={handleZoomIn} title="Zoom In" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                </button>
+                <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all backdrop-blur-md shadow-lg`}>
+                    {isFullscreen ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
+                    ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    )}
+                </button>
+            </div>
         </div>
 
+        {/* PIXI CANVAS */}
         <div ref={containerRef} className="w-full h-full" />
-      </div>
 
-      {isReady && (
-          <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center">
-              <div className="text-center">
-                  <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <h2 className="text-2xl font-bold text-white">Web Submitted!</h2>
-                  <p className="text-slate-400">Waiting for your opponent to finish their build...</p>
+        {/* RETRACTION LIST */}
+        {workspace.length > 0 && (
+          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              {workspace.map(node => (
+                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
+                        <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
+                            {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
+                        </span>
+                      </div>
+                      <button 
+                          onClick={() => retractNode(node.id)}
+                          title="Remove from Web"
+                          className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
+                      >
+                          ×
+                      </button>
+                  </div>
+              ))}
+          </div>
+        )}
+
+        {/* INFO MODAL */}
+        {infoModalNode && (
+          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
+                  <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                  <div className="w-28 h-28 mx-auto rounded-2xl overflow-hidden bg-black mb-5 border-2 shadow-lg" style={{borderColor: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                      {infoModalNode.image && <img src={infoModalNode.image} className="w-full h-full object-cover" />}
+                  </div>
+                  <h3 className="text-2xl font-bold text-white text-center mb-1 leading-tight">{infoModalNode.name}</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-center mb-6" style={{color: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                      {infoModalNode.type}
+                  </p>
+                  <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-white/5">
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Workspace Links</span>
+                        <span className="text-xs text-indigo-400 font-bold">{availableEdges.filter(e => e.id.includes(infoModalNode.id)).length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Database Links</span>
+                        <span className="text-xs text-emerald-400 font-bold">{infoModalNode.connections?.length || 0}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setInfoModalNode(null)} className="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors">
+                      Close Profile
+                  </button>
               </div>
           </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
