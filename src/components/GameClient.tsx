@@ -68,7 +68,7 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     } else document.exitFullscreen();
   };
 
-  // --- SMOOTH ZOOM LOGIC ---
+  // --- SMOOTH ZOOM & CENTER LOGIC ---
   const handleZoom = (direction: 'in' | 'out') => {
       const vp = viewportRef.current;
       if (!vp) return;
@@ -79,6 +79,23 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       
       targetZoomRef.current = target;
       vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
+  };
+
+  const handleCenterView = () => {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      
+      // Reset our zoom tracker so mouse wheel zooming doesn't jump afterward
+      targetZoomRef.current = 1; 
+
+      // D3 forces everything to (1000, 1000), so we animate the camera to that exact spot
+      vp.animate({
+          position: new PIXI.Point(1000, 1000),
+          scale: 1,
+          time: 400,
+          ease: 'easeOutQuart',
+          removeOnInterrupt: true
+      });
   };
 
   // --- 1. INITIALIZATION & RESIZE LOGIC ---
@@ -110,7 +127,6 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       viewport.on('zoomed', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      // FIXED: Listen to window resize so the canvas doesn't break dragging in fullscreen
       handleResize = () => {
           if (app && viewportRef.current) {
               app.resize();
@@ -194,7 +210,9 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
             };
 
             const onUp = () => {
-              node.fx = null; node.fy = null;
+              node.fx = null;
+              node.fy = null;
+
               window.removeEventListener('pointermove', onMove);
               window.removeEventListener('pointerup', onUp);
             };
@@ -344,57 +362,92 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     }
   };
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const toggleSidebar = () => {
+    const newState = !isSidebarOpen;
+    setIsSidebarOpen(newState);
+  };
 
   const showNodeInfo = (node: GameNode, container: PIXI.Container) => {
     if (tool !== 'select') return;
+
     viewportRef.current!.pause = true; 
     const screenPos = viewportRef.current!.toScreen(container.x, container.y);
-    setActiveInfo({ name: node.name, type: node.type, x: screenPos.x, y: screenPos.y });
-    setTimeout(() => { setActiveInfo(null); viewportRef.current!.pause = false; }, 3000);
+    
+    setActiveInfo({
+      name: node.name,
+      type: node.type,
+      x: screenPos.x,
+      y: screenPos.y
+    });
+
+    setTimeout(() => {
+      setActiveInfo(null);
+      viewportRef.current!.pause = false;
+    }, 3000);
   };
 
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       
       {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
-          <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
-              <div>
-                  <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
-              </div>
-              <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-              </button>
-          </div>
-          <div className="p-3">
-            <input 
-              type="text" placeholder="Search anime, actors..."
-              className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
-                {warehouseNodes.filter(node => node.name.toLowerCase().includes(searchQuery.toLowerCase())).map(node => (
-                    <div key={node.id} onClick={() => deployNode(node)} className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                            {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                            <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>{node.type}</p>
-                        </div>
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
+          {isSidebarOpen && (
+              <>
+                  <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
+                      <div>
+                          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
+                      </div>
+                      <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                      </button>
+                  </div>
+                  <div className="p-3">
+                    <input 
+                      type="text"
+                      placeholder="Search anime, actors..."
+                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
+                        {(() => {
+                            const filteredNodes = warehouseNodes.filter(node => 
+                                node.name.toLowerCase().includes(searchQuery.toLowerCase())
+                            );
+
+                            return filteredNodes.map(node => (
+                                <div 
+                                    key={node.id} 
+                                    onClick={() => deployNode(node)} 
+                                    className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
+                                >
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                        {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>
+                                            {node.type}
+                                        </p>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
                     </div>
-                ))}
-            </div>
-          </div>
+                  </div>
+              </>
+          )}
       </div>
 
-      {/* SHOW SIDEBAR BUTTON */}
+      {/* SHOW BUTTON (Visible when sidebar is closed) */}
       {!isSidebarOpen && (
-          <button onClick={toggleSidebar} className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all">
+          <button 
+              onClick={toggleSidebar}
+              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
+          >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
           </button>
       )}
@@ -436,13 +489,20 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
           </div>
 
           <div className="flex gap-2 pointer-events-auto">
-            <button onClick={() => handleZoom('out')} className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
+            {/* NEW CENTER BUTTON */}
+            <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </button>
+            <button onClick={() => handleZoom('out')} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
             </button>
-            <button onClick={() => handleZoom('in')} className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
+            <button onClick={() => handleZoom('in')} title="Zoom In" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
             </button>
-            <button onClick={toggleFullscreen} className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg`}>
+            <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg`}>
                 {isFullscreen ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
