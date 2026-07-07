@@ -1,37 +1,54 @@
 ---
 ---
-<section class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center my-20">
-    <div>
-        <h2 class="text-3xl font-bold text-white mb-6">Master the Drift</h2>
-        <p class="text-slate-400 mb-6 leading-relaxed">
-            New to Driftaku? It's simple to learn but hard to master. Watch our quick 60-second tutorial to understand how to navigate the web, avoid dead ends, and use voice actor overlaps to your advantage.
-        </p>
-        <div class="space-y-4 mb-8">
-            <div class="flex items-start">
-                <div class="mt-1 bg-indigo-500/20 p-1 rounded-full text-indigo-400 mr-3">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+<section class="max-w-6xl mx-auto px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        
+        <!-- Video: Shown First on Mobile, Right on Desktop -->
+        <div class="order-1 lg:order-2">
+            <div class="aspect-video bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative group cursor-pointer">
+                <!-- Decorative background image placeholder -->
+                <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 group-hover:scale-105 transition-transform duration-700"></div>
+                
+                <div class="absolute inset-0 flex items-center justify-center bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors duration-300">
+                    <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.3)]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                    </div>
                 </div>
-                <span class="text-slate-300">Click connected nodes to move through the graph.</span>
-            </div>
-            <div class="flex items-start">
-                <div class="mt-1 bg-indigo-500/20 p-1 rounded-full text-indigo-400 mr-3">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                <div class="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
+                    <p class="text-[10px] uppercase tracking-widest text-white/70 font-bold bg-black/50 inline-block px-3 py-1 rounded-full backdrop-blur-md">Watch 60s Tutorial</p>
                 </div>
-                <span class="text-slate-300">Use Studios and Voice Actors as bridges between series.</span>
             </div>
         </div>
-    </div>
-    
-    <div class="aspect-video bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative group">
-        <div class="absolute inset-0 flex items-center justify-center">
-            <div class="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                </svg>
-            </div>
+
+        <!-- Text Content -->
+        <div class="order-2 lg:order-1">
+            <h2 class="text-3xl md:text-4xl font-black text-white mb-6 uppercase tracking-tighter">Master the Drift</h2>
+            <p class="text-slate-400 mb-8 leading-relaxed text-lg">
+                New to Driftaku? It's simple to learn but hard to master. Watch our quick tutorial to understand how to navigate the web, avoid dead ends, and use voice actor overlaps to your advantage.
+            </p>
+            <ul class="space-y-6 mb-10">
+                <li class="flex items-start bg-slate-900/50 p-4 rounded-2xl border border-white/5">
+                    <div class="mt-0.5 bg-indigo-500/20 p-2 rounded-xl text-indigo-400 mr-4 shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-1">Interactive Navigation</h4>
+                        <span class="text-slate-400 text-sm leading-relaxed">Click connected nodes to move through the graph. The physics engine reacts to your every move.</span>
+                    </div>
+                </li>
+                <li class="flex items-start bg-slate-900/50 p-4 rounded-2xl border border-white/5">
+                    <div class="mt-0.5 bg-emerald-500/20 p-2 rounded-xl text-emerald-400 mr-4 shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-1">Bridge the Gaps</h4>
+                        <span class="text-slate-400 text-sm leading-relaxed">Use Studios and Voice Actors as bridges between completely unrelated anime series.</span>
+                    </div>
+                </li>
+            </ul>
         </div>
-        <div class="absolute bottom-4 left-4 right-4 text-center">
-            <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Tutorial Video</p>
-        </div>
+        
     </div>
 </section>

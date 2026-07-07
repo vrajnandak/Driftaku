@@ -5,24 +5,34 @@ interface Props {
 }
 const { players, modes } = Astro.props;
 ---
-<section class="mt-20 pt-20 border-t border-white/5">
-    <div class="max-w-3xl mx-auto text-center">
-        <h2 class="text-2xl font-bold text-white mb-6">Why play Driftaku?</h2>
-        <p class="text-slate-400 mb-8 leading-relaxed">
-            Unlike traditional trivia, Driftaku requires spatial logic and deep industry knowledge. By mapping relationships between thousands of anime titles, voice actors (seiyuu), and production studios, we've created a dynamic puzzle that never repeats. Join thousands of fans and start drifting today.
+<section class="mt-32 pt-20 pb-20 border-t border-white/5 bg-gradient-to-b from-transparent to-slate-900/50">
+    <div class="max-w-4xl mx-auto px-4 text-center">
+        
+        <h2 class="text-3xl md:text-5xl font-black text-white mb-6 uppercase tracking-tighter">Join the Drift</h2>
+        <p class="text-slate-400 text-lg mb-16 leading-relaxed max-w-2xl mx-auto">
+            Unlike traditional trivia, Driftaku requires spatial logic and deep industry knowledge. By mapping relationships between thousands of anime titles, voice actors, and studios, we've created a dynamic puzzle that never repeats.
         </p>
-        <div class="flex flex-wrap justify-center gap-12 opacity-80">
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-12 sm:gap-6 opacity-90">
+            <!-- Stat 1 -->
             <div class="text-center">
-                <p class="text-3xl font-black text-white">{players}</p>
-                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">Active Drifters</p>
+                <p class="text-5xl md:text-6xl font-black text-white tracking-tighter mb-2">{players}</p>
+                <div class="h-1 w-12 bg-indigo-500 mx-auto rounded-full mb-3"></div>
+                <p class="text-xs md:text-sm uppercase tracking-[0.2em] text-slate-500 font-bold">Active Drifters</p>
             </div>
+            
+            <!-- Stat 2 -->
             <div class="text-center">
-                <p class="text-3xl font-black text-white">{modes}</p>
-                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">Game Modes</p>
+                <p class="text-5xl md:text-6xl font-black text-white tracking-tighter mb-2">{modes}</p>
+                <div class="h-1 w-12 bg-emerald-500 mx-auto rounded-full mb-3"></div>
+                <p class="text-xs md:text-sm uppercase tracking-[0.2em] text-slate-500 font-bold">Game Modes</p>
             </div>
+            
+            <!-- Stat 3 -->
             <div class="text-center">
-                <p class="text-3xl font-black text-white">24/7</p>
-                <p class="text-xs uppercase tracking-widest text-slate-500 font-bold">New Challenges</p>
+                <p class="text-5xl md:text-6xl font-black text-white tracking-tighter mb-2">24/7</p>
+                <div class="h-1 w-12 bg-cyan-500 mx-auto rounded-full mb-3"></div>
+                <p class="text-xs md:text-sm uppercase tracking-[0.2em] text-slate-500 font-bold">New Challenges</p>
             </div>
         </div>
     </div>
