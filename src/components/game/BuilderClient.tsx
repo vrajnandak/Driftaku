@@ -39,38 +39,18 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  
-  // Modal States
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
-  const [isModalExpanded, setIsModalExpanded] = useState(false); // NEW: Expanded Modal State
+  const [showLegend, setShowLegend] = useState(false);
+  const [isModalExpanded, setIsModalExpanded] = useState(false);
   
-  // Submission States
+  // Submission & Timer States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false); 
-
-  // Reset modal expansion when a new node is selected
-  useEffect(() => {
-    setIsModalExpanded(false);
-  }, [infoModalNode]);
-
-  // NEW: Dynamically calculate unlinked neighbors for the Info Modal
-  const unlinkedNeighbors = useMemo(() => {
-      if (!infoModalNode) return [];
-      return builderData.nodes.filter(n => {
-          if (!infoModalNode.connections.includes(n.id)) return false;
-          const edgeId = [infoModalNode.id, n.id].sort().join('::');
-          if (selectedEdges.includes(edgeId)) return false;
-          return true;
-      }).sort((a, b) => {
-          // Sort nodes that are already on the canvas to the top of the list
-          const aDep = workspace.some(w => w.id === a.id);
-          const bDep = workspace.some(w => w.id === b.id);
-          return aDep === bDep ? 0 : aDep ? -1 : 1;
-      });
-  }, [infoModalNode, selectedEdges, builderData.nodes, workspace]);
+  
+  // NEW: Timer State
+  const [timeLeft, setTimeLeft] = useState<number>(builderData.config.buildTime);
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -88,12 +68,9 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     edgeSourceId: null as string | null,
     workspace: [] as GameNode[],
     availableEdges: [] as GraphEdge[],
-    selectedEdges: [] as string[]
+    selectedEdges: [] as string[],
+    isSolvable: false
   });
-
-  useEffect(() => {
-    stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges };
-  }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges]);
 
   // --- VALIDATION LOGIC ---
   const isSolvable = useMemo(() => {
@@ -125,159 +102,233 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return false;
   }, [startNodeId, targetNodeId, selectedEdges]);
 
-  // --- NEW: QUICK DEPLOY NEIGHBOR LOGIC ---
-  const handleQuickAddNeighbor = (neighbor: GameNode) => {
-      if (!infoModalNode) return;
-      const edgeId = [infoModalNode.id, neighbor.id].sort().join('::');
-      
-      const isDeployed = workspace.some(n => n.id === neighbor.id);
-      if (!isDeployed) {
-          if (workspace.length >= builderData.config.maxNodes) {
-              alert("Maximum graph size reached!");
-              return;
-          }
-          // Spawn slightly offset from the infoModalNode to create a nice burst effect
-          const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
-          const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
-          
-          setWorkspace(prev => [...prev, { ...neighbor, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
-      }
+  // Keep stateRef synced
+  useEffect(() => {
+    stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable };
+  }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable]);
 
-      // Add the edge explicitly
-      setSelectedEdges(prev => prev.includes(edgeId) ? prev : [...prev, edgeId]);
+  useEffect(() => {
+    setIsModalExpanded(false);
+  }, [infoModalNode]);
+
+  const unlinkedNeighbors = useMemo(() => {
+      if (!infoModalNode) return [];
+      return builderData.nodes.filter(n => {
+          if (!infoModalNode.connections.includes(n.id)) return false;
+          const edgeId = [infoModalNode.id, n.id].sort().join('::');
+          if (selectedEdges.includes(edgeId)) return false;
+          return true;
+      }).sort((a, b) => {
+          const aDep = workspace.some(w => w.id === a.id);
+          const bDep = workspace.some(w => w.id === b.id);
+          return aDep === bDep ? 0 : aDep ? -1 : 1;
+      });
+  }, [infoModalNode, selectedEdges, builderData.nodes, workspace]);
+
+  // --- AUTO-GENERATE PURE LOGIC ---
+  const generateValidGraphData = () => {
+    const allNodes = builderData.nodes;
+    const maxNodes = builderData.config.maxNodes;
+
+    const adj = new Map<string, string[]>();
+    allNodes.forEach(n => {
+        const validConns = n.connections.filter(cId => allNodes.some(a => a.id === cId));
+        adj.set(n.id, validConns.sort(() => Math.random() - 0.5));
+    });
+
+    let sId = stateRef.current.startNodeId;
+    let parentMap = new Map<string, string | null>();
+    let reachable: string[] = [];
+
+    const runBFS = (root: string) => {
+        const p = new Map<string, string | null>();
+        const depth = new Map<string, number>();
+        const q = [root];
+        p.set(root, null);
+        depth.set(root, 0);
+
+        while (q.length > 0) {
+            const curr = q.shift()!;
+            const currDepth = depth.get(curr)!;
+            
+            if (currDepth >= Math.floor(maxNodes * 0.6)) continue;
+
+            (adj.get(curr) || []).forEach(neighbor => {
+                if (!p.has(neighbor)) {
+                    p.set(neighbor, curr);
+                    depth.set(neighbor, currDepth + 1);
+                    q.push(neighbor);
+                }
+            });
+        }
+        return p;
+    };
+
+    if (sId && (adj.get(sId)?.length || 0) > 0) {
+        parentMap = runBFS(sId);
+        reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+    }
+
+    if (!sId || reachable.length === 0) {
+        const validStarts = allNodes.filter(n => (adj.get(n.id)?.length || 0) > 0);
+        if (validStarts.length === 0) throw new Error("No connected nodes available.");
+        sId = validStarts[Math.floor(Math.random() * validStarts.length)].id;
+        parentMap = runBFS(sId);
+        reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+    }
+
+    let tId = stateRef.current.targetNodeId;
+    if (!tId || !parentMap.has(tId)) {
+        if (reachable.length === 0) throw new Error("Graph isolation error.");
+        tId = reachable[Math.floor(Math.random() * reachable.length)];
+    }
+
+    const pathNodes = new Set<string>();
+    const newEdges: string[] = [];
+    let curr: string | null = tId;
+    
+    while (curr) {
+        pathNodes.add(curr);
+        const p = parentMap.get(curr);
+        if (p) {
+            const edgeId = [p, curr].sort().join('::');
+            newEdges.push(edgeId);
+        }
+        curr = p ?? null; 
+    }
+
+    const finalNodeIds = new Set<string>(pathNodes);
+    const potentialNeighbors = new Set<string>();
+
+    const addNeighborsToPotential = (nodeId: string) => {
+        (adj.get(nodeId) || []).forEach(nId => {
+            if (!finalNodeIds.has(nId)) potentialNeighbors.add(nId);
+        });
+    };
+
+    pathNodes.forEach(addNeighborsToPotential);
+
+    while (finalNodeIds.size < maxNodes && potentialNeighbors.size > 0) {
+        const candidates = Array.from(potentialNeighbors);
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        potentialNeighbors.delete(pick);
+        finalNodeIds.add(pick);
+        addNeighborsToPotential(pick);
+    }
+
+    const newWorkspace: GameNode[] = [];
+    allNodes.forEach(n => {
+        if (finalNodeIds.has(n.id)) {
+            newWorkspace.push({ 
+                ...n, 
+                x: 1000 + (Math.random() * 400 - 200), 
+                y: 1000 + (Math.random() * 400 - 200), 
+                vx: 0, 
+                vy: 0 
+            });
+        }
+    });
+
+    return { startNodeId: sId, targetNodeId: tId, workspace: newWorkspace, selectedEdges: newEdges };
   };
 
-  // --- AUTO-GENERATE LOGIC ---
   const handleAutoGenerate = () => {
     setIsGenerating(true);
-    
     setTimeout(() => {
         try {
-            const allNodes = builderData.nodes;
-            const maxNodes = builderData.config.maxNodes;
-
-            const adj = new Map<string, string[]>();
-            allNodes.forEach(n => {
-                const validConns = n.connections.filter(cId => allNodes.some(a => a.id === cId));
-                adj.set(n.id, validConns.sort(() => Math.random() - 0.5));
-            });
-
-            let sId = stateRef.current.startNodeId;
-            let parentMap = new Map<string, string | null>();
-            let reachable: string[] = [];
-
-            const runBFS = (root: string) => {
-                const p = new Map<string, string | null>();
-                const depth = new Map<string, number>();
-                const q = [root];
-                p.set(root, null);
-                depth.set(root, 0);
-
-                while (q.length > 0) {
-                    const curr = q.shift()!;
-                    const currDepth = depth.get(curr)!;
-                    
-                    if (currDepth >= Math.floor(maxNodes * 0.6)) continue;
-
-                    (adj.get(curr) || []).forEach(neighbor => {
-                        if (!p.has(neighbor)) {
-                            p.set(neighbor, curr);
-                            depth.set(neighbor, currDepth + 1);
-                            q.push(neighbor);
-                        }
-                    });
-                }
-                return p;
-            };
-
-            if (sId && (adj.get(sId)?.length || 0) > 0) {
-                parentMap = runBFS(sId);
-                reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
-            }
-
-            if (!sId || reachable.length === 0) {
-                const validStarts = allNodes.filter(n => (adj.get(n.id)?.length || 0) > 0);
-                if (validStarts.length === 0) throw new Error("No connected nodes available in pool.");
-                
-                const randomStart = validStarts[Math.floor(Math.random() * validStarts.length)].id;
-                sId = randomStart;
-                
-                parentMap = runBFS(sId);
-                reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
-            }
-
-            let tId = stateRef.current.targetNodeId;
-            if (!tId || !parentMap.has(tId)) {
-                if (reachable.length === 0) throw new Error("Graph isolation error.");
-                tId = reachable[Math.floor(Math.random() * reachable.length)];
-            }
-
-            const pathNodes = new Set<string>();
-            const newEdges: string[] = [];
-            let curr: string | null = tId;
-            
-            while (curr) {
-                pathNodes.add(curr);
-                const p = parentMap.get(curr);
-                if (p) {
-                    const edgeId = [p, curr].sort().join('::');
-                    newEdges.push(edgeId);
-                }
-                curr = p ?? null; 
-            }
-
-            const finalNodeIds = new Set<string>(pathNodes);
-            const potentialNeighbors = new Set<string>();
-
-            const addNeighborsToPotential = (nodeId: string) => {
-                (adj.get(nodeId) || []).forEach(nId => {
-                    if (!finalNodeIds.has(nId)) potentialNeighbors.add(nId);
-                });
-            };
-
-            pathNodes.forEach(addNeighborsToPotential);
-
-            while (finalNodeIds.size < Math.ceil(maxNodes * 0.7) && potentialNeighbors.size > 0) {
-                const candidates = Array.from(potentialNeighbors);
-                const pick = candidates[Math.floor(Math.random() * candidates.length)];
-                potentialNeighbors.delete(pick);
-                finalNodeIds.add(pick);
-                addNeighborsToPotential(pick);
-            }
-
-            const newWorkspace: GameNode[] = [];
-            
-            allNodes.forEach(n => {
-                if (finalNodeIds.has(n.id)) {
-                    newWorkspace.push({ 
-                        ...n, 
-                        x: 1000 + (Math.random() * 400 - 200), 
-                        y: 1000 + (Math.random() * 400 - 200), 
-                        vx: 0, 
-                        vy: 0 
-                    });
-                }
-            });
-
-            setStartNodeId(sId);
-            setTargetNodeId(tId);
-            setWorkspace(newWorkspace);
-            setSelectedEdges(newEdges);
+            const generated = generateValidGraphData();
+            setStartNodeId(generated.startNodeId);
+            setTargetNodeId(generated.targetNodeId);
+            setWorkspace(generated.workspace);
+            setSelectedEdges(generated.selectedEdges);
             setEdgeSourceId(null);
             setTool('move');
-            
             handleCenterView();
-
         } catch (err) {
             console.error(err);
-            alert("Could not generate a valid graph with the current pool filters.");
+            alert("Could not generate a valid graph.");
         } finally {
             setIsGenerating(false);
         }
     }, 800);
   };
 
-  // --- SUBMISSION & SYNC LOGIC ---
+  // --- TIMER LOGIC ---
+  useEffect(() => {
+    if (builderData.config.buildTime === 0) return; // Unlimited
+    if (isSubmitting || isWaitingForOpponent || isPreparingSolve || isGenerating) return;
+
+    const timer = setInterval(() => {
+        setTimeLeft(prev => {
+            if (prev <= 1) {
+                clearInterval(timer);
+                forceSubmitOnTimeout();
+                return 0;
+            }
+            return prev - 1;
+        });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isSubmitting, isWaitingForOpponent, isPreparingSolve, isGenerating, builderData.config.buildTime]);
+
+  const forceSubmitOnTimeout = async () => {
+    setIsSubmitting(true);
+    const { playerId } = getLocalPlayerId();
+    
+    const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+    if (!room) return;
+    
+    const isOwner = room.owner_id === playerId;
+    const column = isOwner ? 'graph_a' : 'graph_b';
+
+    let finalStart = stateRef.current.startNodeId;
+    let finalTarget = stateRef.current.targetNodeId;
+    let finalNodeIds = stateRef.current.workspace.map(n => n.id);
+    let finalPath = stateRef.current.selectedEdges;
+
+    // If current graph is invalid, swap it for an auto-generated one
+    if (!stateRef.current.isSolvable) {
+        try {
+            const generated = generateValidGraphData();
+            finalStart = generated.startNodeId;
+            finalTarget = generated.targetNodeId;
+            finalNodeIds = generated.workspace.map(n => n.id);
+            finalPath = generated.selectedEdges;
+            
+            // Show the user what was generated
+            setStartNodeId(finalStart);
+            setTargetNodeId(finalTarget);
+            setWorkspace(generated.workspace);
+            setSelectedEdges(finalPath);
+        } catch (err) {
+            console.error("Timeout fallback generation failed.", err);
+        }
+    }
+
+    const graphPayload = {
+        metadata: { start_node: finalStart, end_node: finalTarget },
+        nodeIds: finalNodeIds, 
+        intendedPath: finalPath        
+    };
+
+    const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
+    if (error) {
+        alert("Failed to auto-submit graph.");
+        setIsSubmitting(false);
+        return;
+    }
+
+    const { data: checkRoom } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+    if (checkRoom?.graph_a && checkRoom?.graph_b) {
+        prepareSolvePhaseRef.current(checkRoom);
+    } else {
+        setIsSubmitting(false);
+        setIsWaitingForOpponent(true);
+    }
+  };
+
+  // --- MANUAL SUBMISSION ---
   const prepareSolvePhaseRef = useRef<any>(null);
   prepareSolvePhaseRef.current = (roomData: any) => {
       setIsWaitingForOpponent(false);
@@ -328,7 +379,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     };
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
-    
     if (error) {
         alert("Failed to submit graph.");
         setIsSubmitting(false);
@@ -392,6 +442,23 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       if (!vp) return;
       targetZoomRef.current = 1; 
       vp.animate({ position: new PIXI.Point(1000, 1000), scale: 1, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
+  };
+
+  // --- NEW: LOCATE NODE IN CANVAS ---
+  const handleLocateNode = (nodeId: string) => {
+      const vp = viewportRef.current;
+      const node = stateRef.current.workspace.find(n => n.id === nodeId);
+      if (!vp || !node || node.x == null || node.y == null) return;
+      
+      const targetScale = 1.5;
+      targetZoomRef.current = targetScale;
+      vp.animate({
+          position: new PIXI.Point(node.x, node.y),
+          scale: targetScale,
+          time: 400,
+          ease: 'easeOutQuart',
+          removeOnInterrupt: true
+      });
   };
 
   // --- INITIALIZE CANVAS ---
@@ -593,7 +660,25 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return { container, bg, icon };
   };
 
-  // --- UI HANDLERS ---
+  const handleQuickAddNeighbor = (neighbor: GameNode) => {
+      if (!infoModalNode) return;
+      const edgeId = [infoModalNode.id, neighbor.id].sort().join('::');
+      
+      const isDeployed = workspace.some(n => n.id === neighbor.id);
+      if (!isDeployed) {
+          if (workspace.length >= builderData.config.maxNodes) {
+              alert("Maximum graph size reached!");
+              return;
+          }
+          const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
+          const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
+          
+          setWorkspace(prev => [...prev, { ...neighbor, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
+      }
+
+      setSelectedEdges(prev => prev.includes(edgeId) ? prev : [...prev, edgeId]);
+  };
+
   const deployNode = (node: GameNode) => {
       if (workspace.length >= builderData.config.maxNodes) return;
       const spawnX = 1000 + (Math.random() * 200 - 100);
@@ -645,26 +730,32 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             return (
               <div 
                 key={node.id} 
-                onClick={() => !deployed && deployNode(node)}
-                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border 
-                  ${deployed ? 'bg-slate-900 border-white/10' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
+                onClick={() => deployed ? handleLocateNode(node.id) : deployNode(node)}
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border cursor-pointer active:scale-95
+                  ${deployed ? 'bg-slate-900 border-white/10 opacity-70 grayscale hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400'}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-50' : 'bg-black'}`}>
+                  <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'bg-transparent' : 'bg-black'}`}>
                     {node.image && <img src={node.image} className="w-full h-full object-cover" />}
                   </div>
-                  <div className={`flex-1 min-w-0 ${deployed ? 'opacity-50' : ''}`}>
+                  <div className="flex-1 min-w-0">
                     <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>{node.type}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                        {node.type}
+                    </p>
                   </div>
                 </div>
+
                 {deployed && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                    className="ml-2 px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                  >
-                    Retract
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mr-1">Locate</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                      className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                    >
+                      Retract
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -733,14 +824,18 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         </div>
 
         {/* INSTRUCTIONS & ZOOM CONTROLS */}
-        <div className="absolute top-6 right-6 z-30 flex gap-4 items-center">
-            <div className="hidden xl:block text-[10px] text-slate-400 uppercase tracking-widest font-bold text-right">
-                {tool === 'move' && "Drag nodes or click for info"}
-                {tool === 'toggle_edge' && (edgeSourceId ? "Click destination node" : "Click source node")}
-                {tool === 'set_start' && "Mark starting point"}
-                {tool === 'set_target' && "Mark destination"}
-            </div>
-            <div className="flex gap-2">
+        <div className="absolute top-6 right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
+            
+            {builderData.config.buildTime > 0 && (
+              <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Remaining</p>
+                <p className={`text-xl font-mono font-bold ${timeLeft <= 30 ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
+                    {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-2 pointer-events-auto">
                 <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -773,24 +868,24 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         )}
 
         {/* LOADING OVERLAYS */}
-        { (isWaitingForOpponent || isPreparingSolve || isGenerating) && (
+        { (isWaitingForOpponent || isPreparingSolve || isGenerating || isSubmitting) && (
             <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
                 <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mb-6 ${isGenerating ? 'border-fuchsia-500' : 'border-indigo-500'}`}></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
-                    {isGenerating ? 'Generating Web...' : isPreparingSolve ? 'Intercepting Web...' : 'Web Submitted!'}
+                    {isGenerating ? 'Generating Web...' : isPreparingSolve ? 'Intercepting Web...' : isSubmitting ? 'Submitting...' : 'Web Submitted!'}
                 </h2>
                 <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
-                    {isGenerating ? 'Finding optimal paths and red herrings' : isPreparingSolve ? "Downloading opponent's graph data" : "Waiting for opponent to finish..."}
+                    {isGenerating ? 'Finding optimal paths and red herrings' : isPreparingSolve ? "Downloading opponent's graph data" : isSubmitting ? 'Finalizing your creation' : "Waiting for opponent to finish..."}
                 </p>
             </div>
         )}
 
         {/* PIXI CANVAS */}
-        <div ref={containerRef} className="w-full h-full" />
+        <div ref={containerRef} className="w-full h-full pointer-events-auto" />
 
         {/* RETRACTION LIST */}
         {workspace.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2">
+          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto">
               {workspace.map(node => (
                   <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0">
                       <div className="flex flex-col">
@@ -813,7 +908,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
 
         {/* INFO MODAL */}
         {infoModalNode && (
-          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
               <div className={`bg-slate-900 border border-white/10 rounded-3xl p-6 ${isModalExpanded ? 'max-w-md' : 'max-w-sm'} w-full shadow-2xl relative transition-all duration-300 flex flex-col max-h-[90vh]`}>
                   <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -907,7 +1002,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
 
         {/* LEGEND MODAL */}
         {showLegend && (
-          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
               <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                   <button onClick={() => setShowLegend(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
