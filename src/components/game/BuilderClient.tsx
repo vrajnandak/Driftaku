@@ -43,13 +43,17 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const [showLegend, setShowLegend] = useState(false);
   const [isModalExpanded, setIsModalExpanded] = useState(false);
   
+  // Auto-Build Modal States
+  const [isAutoBuildModalOpen, setIsAutoBuildModalOpen] = useState(false);
+  const [abTotalNodes, setAbTotalNodes] = useState<number>(builderData.config.maxNodes);
+  const [abPathLength, setAbPathLength] = useState<number>(Math.min(5, builderData.config.maxNodes));
+  const [abIsolated, setAbIsolated] = useState<number>(0);
+  
   // Submission & Timer States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false); 
-  
-  // NEW: Timer State
   const [timeLeft, setTimeLeft] = useState<number>(builderData.config.buildTime);
 
   // --- REFS ---
@@ -71,6 +75,12 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     selectedEdges: [] as string[],
     isSolvable: false
   });
+
+  // --- AUTO-BUILD VALIDATION EFFECT ---
+  useEffect(() => {
+    if (abPathLength > abTotalNodes) setAbPathLength(abTotalNodes);
+    if (abIsolated > abTotalNodes - abPathLength) setAbIsolated(abTotalNodes - abPathLength);
+  }, [abTotalNodes, abPathLength, abIsolated]);
 
   // --- VALIDATION LOGIC ---
   const isSolvable = useMemo(() => {
@@ -102,7 +112,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return false;
   }, [startNodeId, targetNodeId, selectedEdges]);
 
-  // Keep stateRef synced
   useEffect(() => {
     stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable };
   }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable]);
@@ -110,6 +119,28 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   useEffect(() => {
     setIsModalExpanded(false);
   }, [infoModalNode]);
+
+  // --- NEW: QUICK DEPLOY NEIGHBOR LOGIC ---
+  const handleQuickAddNeighbor = (neighbor: GameNode) => {
+      if (!infoModalNode) return;
+      const edgeId = [infoModalNode.id, neighbor.id].sort().join('::');
+      
+      const isDeployed = workspace.some(n => n.id === neighbor.id);
+      if (!isDeployed) {
+          if (workspace.length >= builderData.config.maxNodes) {
+              alert("Maximum graph size reached!");
+              return;
+          }
+          // Spawn slightly offset from the infoModalNode to create a nice burst effect
+          const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
+          const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
+          
+          setWorkspace(prev => [...prev, { ...neighbor, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
+      }
+
+      // Add the edge explicitly to the intended path
+      setSelectedEdges(prev => prev.includes(edgeId) ? prev : [...prev, edgeId]);
+  };
 
   const unlinkedNeighbors = useMemo(() => {
       if (!infoModalNode) return [];
@@ -125,11 +156,11 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       });
   }, [infoModalNode, selectedEdges, builderData.nodes, workspace]);
 
-  // --- AUTO-GENERATE PURE LOGIC ---
-  const generateValidGraphData = () => {
+  // --- AUTO-GENERATE ALGORITHM ---
+  const generateValidGraphData = (totalNodes: number, reqPathLength: number, reqIsolated: number) => {
     const allNodes = builderData.nodes;
-    const maxNodes = builderData.config.maxNodes;
 
+    // 1. Build Global Adjacency Map (Shuffled for randomness)
     const adj = new Map<string, string[]>();
     allNodes.forEach(n => {
         const validConns = n.connections.filter(cId => allNodes.some(a => a.id === cId));
@@ -137,106 +168,164 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     });
 
     let sId = stateRef.current.startNodeId;
-    let parentMap = new Map<string, string | null>();
-    let reachable: string[] = [];
+    let tId = stateRef.current.targetNodeId;
 
-    const runBFS = (root: string) => {
+    // BFS Helper
+    const getPath = (start: string, end: string) => {
+        if (start === end) return [start];
+        const q = [start];
         const p = new Map<string, string | null>();
-        const depth = new Map<string, number>();
-        const q = [root];
-        p.set(root, null);
-        depth.set(root, 0);
-
-        while (q.length > 0) {
+        p.set(start, null);
+        while(q.length > 0) {
             const curr = q.shift()!;
-            const currDepth = depth.get(curr)!;
-            
-            if (currDepth >= Math.floor(maxNodes * 0.6)) continue;
-
-            (adj.get(curr) || []).forEach(neighbor => {
-                if (!p.has(neighbor)) {
-                    p.set(neighbor, curr);
-                    depth.set(neighbor, currDepth + 1);
-                    q.push(neighbor);
-                }
+            if (curr === end) break;
+            (adj.get(curr) || []).forEach(n => {
+                if (!p.has(n)) { p.set(n, curr); q.push(n); }
             });
         }
-        return p;
+        if (!p.has(end)) return null;
+        const path = [];
+        let c: string | null = end;
+        while(c) { path.push(c); c = p.get(c) ?? null; }
+        return path.reverse();
     };
 
-    if (sId && (adj.get(sId)?.length || 0) > 0) {
-        parentMap = runBFS(sId);
-        reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+    // Phase 1: Pathfinding
+    let finalPathNodes: string[] = [];
+
+    // If both exist, try to keep the user's setup
+    if (sId && tId) {
+        const existingPath = getPath(sId, tId);
+        if (existingPath) {
+            finalPathNodes = existingPath;
+        } else {
+            tId = null; // Drop target if not connected
+        }
     }
 
-    if (!sId || reachable.length === 0) {
+    // If missing start, pick a random valid one
+    if (!sId || !adj.get(sId)?.length) {
         const validStarts = allNodes.filter(n => (adj.get(n.id)?.length || 0) > 0);
         if (validStarts.length === 0) throw new Error("No connected nodes available.");
         sId = validStarts[Math.floor(Math.random() * validStarts.length)].id;
-        parentMap = runBFS(sId);
-        reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+        tId = null;
     }
 
-    let tId = stateRef.current.targetNodeId;
-    if (!tId || !parentMap.has(tId)) {
-        if (reachable.length === 0) throw new Error("Graph isolation error.");
-        tId = reachable[Math.floor(Math.random() * reachable.length)];
-    }
-
-    const pathNodes = new Set<string>();
-    const newEdges: string[] = [];
-    let curr: string | null = tId;
-    
-    while (curr) {
-        pathNodes.add(curr);
-        const p = parentMap.get(curr);
-        if (p) {
-            const edgeId = [p, curr].sort().join('::');
-            newEdges.push(edgeId);
+    // If missing target, run BFS to requested depth
+    if (!tId) {
+        const targetDepth = Math.max(1, reqPathLength - 1);
+        const q = [sId];
+        const depthMap = new Map<string, number>();
+        depthMap.set(sId, 0);
+        
+        const candidates: string[] = [];
+        let maxDepth = 0;
+        
+        while(q.length > 0) {
+            const curr = q.shift()!;
+            const d = depthMap.get(curr)!;
+            maxDepth = Math.max(maxDepth, d);
+            
+            if (d === targetDepth) {
+                candidates.push(curr);
+                continue; 
+            }
+            
+            (adj.get(curr) || []).forEach(n => {
+                if (!depthMap.has(n)) { depthMap.set(n, d + 1); q.push(n); }
+            });
         }
-        curr = p ?? null; 
+        
+        if (candidates.length > 0) {
+            tId = candidates[Math.floor(Math.random() * candidates.length)];
+        } else {
+            // Fallback to deepest possible
+            const deepestNodes = Array.from(depthMap.entries()).filter(([_, d]) => d === maxDepth).map(([n]) => n);
+            tId = deepestNodes[Math.floor(Math.random() * deepestNodes.length)];
+        }
+        finalPathNodes = getPath(sId, tId) || [sId];
     }
 
-    const finalNodeIds = new Set<string>(pathNodes);
-    const potentialNeighbors = new Set<string>();
+    const webNodes = new Set<string>(finalPathNodes);
+    const selectedEdgeSet = new Set<string>();
 
-    const addNeighborsToPotential = (nodeId: string) => {
-        (adj.get(nodeId) || []).forEach(nId => {
-            if (!finalNodeIds.has(nId)) potentialNeighbors.add(nId);
+    for(let i=0; i<finalPathNodes.length - 1; i++) {
+        selectedEdgeSet.add([finalPathNodes[i], finalPathNodes[i+1]].sort().join('::'));
+    }
+
+    // Phase 2: Red Herrings
+    const targetRedHerrings = Math.max(0, totalNodes - finalPathNodes.length - reqIsolated);
+    let herringsAdded = 0;
+    
+    while(herringsAdded < targetRedHerrings) {
+        const potential = new Set<string>();
+        webNodes.forEach(node => {
+            (adj.get(node) || []).forEach(neighbor => {
+                if (!webNodes.has(neighbor)) potential.add(neighbor);
+            });
         });
-    };
-
-    pathNodes.forEach(addNeighborsToPotential);
-
-    while (finalNodeIds.size < maxNodes && potentialNeighbors.size > 0) {
-        const candidates = Array.from(potentialNeighbors);
-        const pick = candidates[Math.floor(Math.random() * candidates.length)];
-        potentialNeighbors.delete(pick);
-        finalNodeIds.add(pick);
-        addNeighborsToPotential(pick);
+        
+        if (potential.size === 0) break;
+        
+        const cands = Array.from(potential);
+        const pick = cands[Math.floor(Math.random() * cands.length)];
+        const possibleParents = (adj.get(pick) || []).filter(n => webNodes.has(n));
+        const parent = possibleParents[Math.floor(Math.random() * possibleParents.length)];
+        
+        webNodes.add(pick);
+        selectedEdgeSet.add([pick, parent].sort().join('::'));
+        herringsAdded++;
     }
 
+    // Phase 3: Isolated Clusters
+    const forbidden = new Set<string>(webNodes);
+    webNodes.forEach(node => { (adj.get(node) || []).forEach(n => forbidden.add(n)); });
+    
+    const allowedPool = allNodes.filter(n => !forbidden.has(n.id)).sort(()=>Math.random()-0.5);
+    const isolatedNodes = new Set<string>();
+    
+    const actualIsolatedCount = Math.min(reqIsolated, totalNodes - webNodes.size);
+    for(let i=0; i<actualIsolatedCount && i<allowedPool.length; i++) {
+        isolatedNodes.add(allowedPool[i].id);
+    }
+    
+    const isoArray = Array.from(isolatedNodes);
+    for(let i=0; i<isoArray.length; i++) {
+        for(let j=i+1; j<isoArray.length; j++) {
+            if (adj.get(isoArray[i])?.includes(isoArray[j])) {
+                selectedEdgeSet.add([isoArray[i], isoArray[j]].sort().join('::'));
+            }
+        }
+    }
+
+    // Phase 4: Assembly
+    const finalSet = new Set([...webNodes, ...isolatedNodes]);
     const newWorkspace: GameNode[] = [];
     allNodes.forEach(n => {
-        if (finalNodeIds.has(n.id)) {
+        if (finalSet.has(n.id)) {
             newWorkspace.push({ 
                 ...n, 
                 x: 1000 + (Math.random() * 400 - 200), 
                 y: 1000 + (Math.random() * 400 - 200), 
-                vx: 0, 
-                vy: 0 
+                vx: 0, vy: 0 
             });
         }
     });
 
-    return { startNodeId: sId, targetNodeId: tId, workspace: newWorkspace, selectedEdges: newEdges };
+    return { 
+      startNodeId: sId, 
+      targetNodeId: tId, 
+      workspace: newWorkspace, 
+      selectedEdges: Array.from(selectedEdgeSet) 
+    };
   };
 
-  const handleAutoGenerate = () => {
+  const handleExecuteAutoBuild = () => {
+    setIsAutoBuildModalOpen(false);
     setIsGenerating(true);
     setTimeout(() => {
         try {
-            const generated = generateValidGraphData();
+            const generated = generateValidGraphData(abTotalNodes, abPathLength, abIsolated);
             setStartNodeId(generated.startNodeId);
             setTargetNodeId(generated.targetNodeId);
             setWorkspace(generated.workspace);
@@ -246,16 +335,16 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             handleCenterView();
         } catch (err) {
             console.error(err);
-            alert("Could not generate a valid graph.");
+            alert("Could not generate a valid graph with the current parameters.");
         } finally {
             setIsGenerating(false);
         }
-    }, 800);
+    }, 500);
   };
 
   // --- TIMER LOGIC ---
   useEffect(() => {
-    if (builderData.config.buildTime === 0) return; // Unlimited
+    if (builderData.config.buildTime === 0) return;
     if (isSubmitting || isWaitingForOpponent || isPreparingSolve || isGenerating) return;
 
     const timer = setInterval(() => {
@@ -287,16 +376,17 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     let finalNodeIds = stateRef.current.workspace.map(n => n.id);
     let finalPath = stateRef.current.selectedEdges;
 
-    // If current graph is invalid, swap it for an auto-generated one
     if (!stateRef.current.isSolvable) {
         try {
-            const generated = generateValidGraphData();
+            const defTotal = builderData.config.maxNodes;
+            const defPath = Math.min(5, defTotal);
+            const generated = generateValidGraphData(defTotal, defPath, 0);
+            
             finalStart = generated.startNodeId;
             finalTarget = generated.targetNodeId;
             finalNodeIds = generated.workspace.map(n => n.id);
             finalPath = generated.selectedEdges;
             
-            // Show the user what was generated
             setStartNodeId(finalStart);
             setTargetNodeId(finalTarget);
             setWorkspace(generated.workspace);
@@ -347,7 +437,23 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                   intendedPath: opponentGraph.intendedPath
               };
 
-              localStorage.setItem(`driftaku_solve_${roomId}`, JSON.stringify(readySolveData));
+                const solveStorageKey = `driftaku_solve_${roomId}`;
+                const solveStorageValue = JSON.stringify(readySolveData);
+
+                // 1. Safely gather all old keys first
+                const keysToDelete: string[] = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('driftaku_solve_') && key !== solveStorageKey) {
+                        keysToDelete.push(key);
+                    }
+                }
+
+                // 2. Remove them
+                keysToDelete.forEach(key => localStorage.removeItem(key));
+
+                // 3. Set the new data
+                localStorage.setItem(solveStorageKey, solveStorageValue);
               
               if (isOwner && roomData.status !== 'solving') {
                   supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
@@ -452,13 +558,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       
       const targetScale = 1.5;
       targetZoomRef.current = targetScale;
-      vp.animate({
-          position: new PIXI.Point(node.x, node.y),
-          scale: targetScale,
-          time: 400,
-          ease: 'easeOutQuart',
-          removeOnInterrupt: true
-      });
+      vp.animate({ position: new PIXI.Point(node.x, node.y), scale: targetScale, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
   };
 
   // --- INITIALIZE CANVAS ---
@@ -660,25 +760,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return { container, bg, icon };
   };
 
-  const handleQuickAddNeighbor = (neighbor: GameNode) => {
-      if (!infoModalNode) return;
-      const edgeId = [infoModalNode.id, neighbor.id].sort().join('::');
-      
-      const isDeployed = workspace.some(n => n.id === neighbor.id);
-      if (!isDeployed) {
-          if (workspace.length >= builderData.config.maxNodes) {
-              alert("Maximum graph size reached!");
-              return;
-          }
-          const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
-          const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
-          
-          setWorkspace(prev => [...prev, { ...neighbor, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
-      }
-
-      setSelectedEdges(prev => prev.includes(edgeId) ? prev : [...prev, edgeId]);
-  };
-
   const deployNode = (node: GameNode) => {
       if (workspace.length >= builderData.config.maxNodes) return;
       const spawnX = 1000 + (Math.random() * 200 - 100);
@@ -797,7 +878,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             
             <button 
-                onClick={handleAutoGenerate}
+                onClick={() => setIsAutoBuildModalOpen(true)}
                 disabled={isSubmitting || isGenerating}
                 className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20 disabled:opacity-50"
             >
@@ -877,6 +958,70 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
                     {isGenerating ? 'Finding optimal paths and red herrings' : isPreparingSolve ? "Downloading opponent's graph data" : isSubmitting ? 'Finalizing your creation' : "Waiting for opponent to finish..."}
                 </p>
+            </div>
+        )}
+
+        {/* AUTO-BUILD MODAL */}
+        {isAutoBuildModalOpen && (
+            <div className="absolute inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
+                <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative">
+                    <button onClick={() => setIsAutoBuildModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                    
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-6">Auto-Build Setup</h2>
+
+                    <div className="space-y-6">
+                        <div>
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                                <span>Total Nodes</span>
+                                <span className="text-white">{abTotalNodes} / {builderData.config.maxNodes}</span>
+                            </div>
+                            <input 
+                                type="range" min={2} max={builderData.config.maxNodes} value={abTotalNodes}
+                                onChange={(e) => setAbTotalNodes(Number(e.target.value))}
+                                className="w-full accent-fuchsia-500"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
+                                <span>Target Path Length</span>
+                                <span className="text-white">{abPathLength}</span>
+                            </div>
+                            <p className="text-[9px] text-slate-500 mb-2 leading-tight">*Ignored if Start & Target are already connected.</p>
+                            <input 
+                                type="range" min={2} max={abTotalNodes} value={abPathLength}
+                                onChange={(e) => setAbPathLength(Number(e.target.value))}
+                                className="w-full accent-indigo-500"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                                <span>Isolated Clusters</span>
+                                <span className="text-white">{abIsolated}</span>
+                            </div>
+                            <input 
+                                type="range" min={0} max={Math.max(0, abTotalNodes - abPathLength)} value={abIsolated}
+                                onChange={(e) => setAbIsolated(Number(e.target.value))}
+                                className="w-full accent-emerald-500"
+                            />
+                        </div>
+
+                        <div className="bg-slate-950 p-4 rounded-xl border border-white/5 flex justify-between items-center">
+                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Red Herrings</span>
+                            <span className="text-lg font-black text-rose-400">{Math.max(0, abTotalNodes - abPathLength - abIsolated)}</span>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleExecuteAutoBuild}
+                        className="w-full mt-8 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors shadow-lg shadow-fuchsia-500/20"
+                    >
+                        Generate Web
+                    </button>
+                </div>
             </div>
         )}
 
