@@ -42,10 +42,11 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   
-  // Submission States
+  // Submission & Loading States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // NEW: Auto-Gen State
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -99,6 +100,147 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     }
     return false;
   }, [startNodeId, targetNodeId, selectedEdges]);
+
+  // --- AUTO-GENERATE LOGIC ---
+  const handleAutoGenerate = () => {
+    setIsGenerating(true);
+    
+    // Artificial delay to allow UI overlay to render
+    setTimeout(() => {
+        try {
+            const allNodes = builderData.nodes;
+            const maxNodes = builderData.config.maxNodes;
+
+            // 1. Build Global Adjacency Map
+            const adj = new Map<string, string[]>();
+            allNodes.forEach(n => {
+                const validConns = n.connections.filter(cId => allNodes.some(a => a.id === cId));
+                // Shuffle array so BFS takes different routes every time
+                adj.set(n.id, validConns.sort(() => Math.random() - 0.5));
+            });
+
+            // 2. Validate/Pick Start Node
+            let sId = stateRef.current.startNodeId;
+            let parentMap = new Map<string, string | null>();
+            let reachable: string[] = [];
+
+            // Helper to run BFS
+            const runBFS = (root: string) => {
+                const p = new Map<string, string | null>();
+                const depth = new Map<string, number>();
+                const q = [root];
+                p.set(root, null);
+                depth.set(root, 0);
+                while (q.length > 0) {
+                    const curr = q.shift()!;
+                    const currDepth = depth.get(curr)!;
+                    if(currDepth >= Math.floor(maxNodes*0.6)) continue; // Limit depth to avoid overly long paths and make space for red herrings.
+                    (adj.get(curr) || []).forEach(neighbor => {
+                        if (!p.has(neighbor)) {
+                            p.set(neighbor, curr);
+                            depth.set(neighbor, currDepth + 1);
+                            q.push(neighbor);
+                        }
+                    });
+                }
+                return p;
+            };
+
+            if (sId && (adj.get(sId)?.length || 0) > 0) {
+                parentMap = runBFS(sId);
+                reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+            }
+
+            // If start node was bad or missing, pick a valid random one
+            if (!sId || reachable.length === 0) {
+                const validStarts = allNodes.filter(n => (adj.get(n.id)?.length || 0) > 0);
+                if (validStarts.length === 0) throw new Error("No connected nodes available in pool.");
+                sId = validStarts[Math.floor(Math.random() * validStarts.length)].id;
+                parentMap = runBFS(sId);
+                reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
+            }
+
+            // 3. Validate/Pick Target Node
+            let tId = stateRef.current.targetNodeId;
+            if (!tId || !parentMap.has(tId)) {
+                if (reachable.length === 0) throw new Error("Graph isolation error.");
+                // Pick a random reachable node
+                tId = reachable[Math.floor(Math.random() * reachable.length)];
+            }
+
+            // 4. Extract Shortest Path Edges & Nodes
+            const pathNodes = new Set<string>();
+            const newEdges: string[] = [];
+            let curr: string | null = tId;
+            
+            while (curr) {
+                pathNodes.add(curr);
+                const p = parentMap.get(curr);
+                if (p) {
+                    const edgeId = [p, curr].sort().join('::');
+                    newEdges.push(edgeId);
+                }
+                curr = p ?? null;
+            }
+
+            // 5. Add Red Herrings up to maxNodes limit
+            const finalNodeIds = new Set<string>(pathNodes);
+            const potentialNeighbors = new Set<string>();
+
+            const addNeighborsToPotential = (nodeId: string) => {
+                (adj.get(nodeId) || []).forEach(nId => {
+                    if (!finalNodeIds.has(nId)) potentialNeighbors.add(nId);
+                });
+            };
+
+            pathNodes.forEach(addNeighborsToPotential);
+
+            while (finalNodeIds.size < Math.ceil(maxNodes * 0.7) && potentialNeighbors.size > 0) {
+                const candidates = Array.from(potentialNeighbors);
+                const pick = candidates[Math.floor(Math.random() * candidates.length)];
+                potentialNeighbors.delete(pick);
+                finalNodeIds.add(pick);
+                addNeighborsToPotential(pick);
+            }
+
+            // 6. Update State
+            const newWorkspace: GameNode[] = [];
+            // const newWarehouse: GameNode[] = [];
+            
+            allNodes.forEach(n => {
+                if (finalNodeIds.has(n.id)) {
+                    // Spawn nodes loosely in the center
+                    newWorkspace.push({ 
+                        ...n, 
+                        x: 1000 + (Math.random() * 400 - 200), 
+                        y: 1000 + (Math.random() * 400 - 200), 
+                        vx: 0, 
+                        vy: 0 
+                    });
+                }
+                // } else {
+                //     newWarehouse.push(n);
+                // }
+            });
+
+            setStartNodeId(sId);
+            setTargetNodeId(tId);
+            setWorkspace(newWorkspace);
+            setSelectedEdges(newEdges);
+            setEdgeSourceId(null);
+            setTool('move');
+            
+            // Recenter Camera for good UX
+            handleCenterView();
+
+        } catch (err) {
+            console.error(err);
+            alert("Could not generate a valid graph with the current pool filters.");
+        } finally {
+            setIsGenerating(false);
+        }
+    }, 800); // 800ms delay to feel deliberate
+  };
 
   // --- SUBMISSION & SYNC LOGIC ---
   const prepareSolvePhaseRef = useRef<any>(null);
@@ -171,7 +313,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   useEffect(() => {
     const channel = supabase.channel(`room_${roomId}_build`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
-          if (payload.new.graph_a && payload.new.graph_b) {
+          if (payload.new.status === 'solving' || (payload.new.graph_a && payload.new.graph_b)) {
               prepareSolvePhaseRef.current(payload.new);
           }
       })
@@ -179,6 +321,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
 
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
+
 
   // --- FULLSCREEN & ZOOM & CENTER ---
   useEffect(() => {
@@ -213,13 +356,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       const vp = viewportRef.current;
       if (!vp) return;
       targetZoomRef.current = 1; 
-      vp.animate({
-          position: new PIXI.Point(1000, 1000),
-          scale: 1,
-          time: 400,
-          ease: 'easeOutQuart',
-          removeOnInterrupt: true
-      });
+      vp.animate({ position: new PIXI.Point(1000, 1000), scale: 1, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
   };
 
   // --- INITIALIZE CANVAS ---
@@ -253,7 +390,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         .force("y", d3.forceY(1000).strength(0.02));
 
       app.ticker.add(() => {
-        // Draw Edges
         if (linkLayerRef.current) {
             linkLayerRef.current.clear();
             stateRef.current.availableEdges.forEach(edge => {
@@ -270,7 +406,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             });
         }
 
-        // Draw Nodes
         stateRef.current.workspace.forEach(node => {
           const vis = spriteMap.current[node.id];
           if (vis && node.x != null && node.y != null) {
@@ -356,13 +491,21 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       const currentTool = stateRef.current.tool;
       
       if (currentTool === 'set_start') {
-          setStartNodeId(node.id);
-          if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
-          setEdgeSourceId(null);
+        if (stateRef.current.startNodeId === node.id) {
+            setStartNodeId(null);
+        } else {
+            setStartNodeId(node.id);
+            if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
+        }
+        setEdgeSourceId(null);
       } 
       else if (currentTool === 'set_target') {
-          setTargetNodeId(node.id);
-          if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
+        if (stateRef.current.targetNodeId === node.id) {
+            setTargetNodeId(null);
+        } else {
+            setTargetNodeId(node.id);
+            if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
+        }
           setEdgeSourceId(null);
       } 
       else if (currentTool === 'toggle_edge') {
@@ -526,6 +669,17 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 Target
             </button>
             <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+            
+            {/* NEW: AUTO GENERATE BUTTON */}
+            <button 
+                onClick={handleAutoGenerate}
+                disabled={isSubmitting || isGenerating}
+                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20 disabled:opacity-50"
+            >
+                Auto Build
+            </button>
+
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             <button 
                 onClick={() => setShowLegend(true)}
                 className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
@@ -536,7 +690,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             
             <button 
                 onClick={handleSubmit}
-                disabled={!isSolvable || isSubmitting}
+                disabled={!isSolvable || isSubmitting || isGenerating}
                 className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all 
                   ${isSolvable ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
             >
@@ -544,7 +698,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             </button>
         </div>
 
-        {/* INSTRUCTIONS & ZOOM & CENTER CONTROLS */}
+        {/* INSTRUCTIONS & ZOOM CONTROLS */}
         <div className="absolute top-6 right-6 z-30 flex gap-4 items-center">
             <div className="hidden xl:block text-[10px] text-slate-400 uppercase tracking-widest font-bold text-right">
                 {tool === 'move' && "Drag nodes or click for info"}
@@ -553,7 +707,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 {tool === 'set_target' && "Mark destination"}
             </div>
             <div className="flex gap-2">
-                {/* NEW CENTER BUTTON */}
                 <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -577,7 +730,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         </div>
 
         {/* SUBMISSION INDICATOR (Not Solvable) */}
-        {!isSolvable && !isWaitingForOpponent && !isPreparingSolve && (
+        {!isSolvable && !isWaitingForOpponent && !isPreparingSolve && !isGenerating && (
           <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
              <div className="bg-slate-900/90 text-slate-400 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-lg">
                 Status: <span className="text-rose-400 ml-1">Path Disconnected</span>
@@ -585,15 +738,15 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
           </div>
         )}
 
-        {/* WAITING / PREPARING OVERLAY */}
-        { (isWaitingForOpponent || isPreparingSolve) && (
+        {/* LOADING OVERLAYS */}
+        { (isWaitingForOpponent || isPreparingSolve || isGenerating) && (
             <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+                <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mb-6 ${isGenerating ? 'border-fuchsia-500' : 'border-indigo-500'}`}></div>
                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
-                    {isPreparingSolve ? 'Intercepting Web...' : 'Web Submitted!'}
+                    {isGenerating ? 'Generating Web...' : isPreparingSolve ? 'Intercepting Web...' : 'Web Submitted!'}
                 </h2>
                 <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
-                    {isPreparingSolve ? "Downloading opponent's graph data" : "Waiting for opponent to finish..."}
+                    {isGenerating ? 'Finding optimal paths and red herrings' : isPreparingSolve ? "Downloading opponent's graph data" : "Waiting for opponent to finish..."}
                 </p>
             </div>
         )}
