@@ -42,7 +42,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   
-  // --- SUBMISSION STATES ---
+  // Submission States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
@@ -101,41 +101,30 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   }, [startNodeId, targetNodeId, selectedEdges]);
 
   // --- SUBMISSION & SYNC LOGIC ---
-  
-  // Helper ref to avoid stale closures in the Realtime listener
   const prepareSolvePhaseRef = useRef<any>(null);
   prepareSolvePhaseRef.current = (roomData: any) => {
-      // 1. Show the "Intercepting Web" Loader
       setIsWaitingForOpponent(false);
       setIsPreparingSolve(true);
 
-      // Artificial delay to make the transition feel deliberate and allow UI to render
       setTimeout(() => {
           const { playerId } = getLocalPlayerId();
           const isOwner = roomData.owner_id === playerId;
-          
-          // 2. Extract the Opponent's lightweight graph
           const opponentGraph = isOwner ? roomData.graph_b : roomData.graph_a;
 
           if (opponentGraph) {
-              // 3. Rehydrate the opponent's graph with FULL node details (including Base64 images)
               const fullOpponentNodes = builderData.nodes.filter(n => opponentGraph.nodeIds.includes(n.id));
-              
               const readySolveData = {
                   metadata: opponentGraph.metadata,
                   nodes: fullOpponentNodes,
                   intendedPath: opponentGraph.intendedPath
               };
 
-              // 4. Save to LocalStorage as our "JSON File Hand-off"
               localStorage.setItem(`driftaku_solve_${roomId}`, JSON.stringify(readySolveData));
               
-              // 5. Room owner updates the global status so late-joiners know it's solving phase
               if (isOwner && roomData.status !== 'solving') {
                   supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
               }
 
-              // 6. Redirect instantly to the Solve page
               window.location.href = `/play/friends/${roomId}/solve`;
           }
       }, 2000); 
@@ -169,7 +158,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         return;
     }
 
-    // Check if the OTHER player is already done
     const { data: checkRoom } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     
     if (checkRoom?.graph_a && checkRoom?.graph_b) {
@@ -181,7 +169,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   };
 
   useEffect(() => {
-    // Listen for the opponent finishing
     const channel = supabase.channel(`room_${roomId}_build`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
           if (payload.new.graph_a && payload.new.graph_b) {
@@ -193,8 +180,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
-
-  // --- FULLSCREEN & ZOOM ---
+  // --- FULLSCREEN & ZOOM & CENTER ---
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -221,6 +207,19 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       const target = Math.max((targetZoomRef.current || vp.scale.x) * 0.6, 0.2);
       targetZoomRef.current = target;
       vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
+  };
+
+  const handleCenterView = () => {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      targetZoomRef.current = 1; 
+      vp.animate({
+          position: new PIXI.Point(1000, 1000),
+          scale: 1,
+          time: 400,
+          ease: 'easeOutQuart',
+          removeOnInterrupt: true
+      });
   };
 
   // --- INITIALIZE CANVAS ---
@@ -478,7 +477,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                   </div>
                   <div className={`flex-1 min-w-0 ${deployed ? 'opacity-50' : ''}`}>
                     <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>{node.type}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>{node.type}</p>
                   </div>
                 </div>
                 {deployed && (
@@ -545,7 +544,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             </button>
         </div>
 
-        {/* INSTRUCTIONS & ZOOM CONTROLS */}
+        {/* INSTRUCTIONS & ZOOM & CENTER CONTROLS */}
         <div className="absolute top-6 right-6 z-30 flex gap-4 items-center">
             <div className="hidden xl:block text-[10px] text-slate-400 uppercase tracking-widest font-bold text-right">
                 {tool === 'move' && "Drag nodes or click for info"}
@@ -554,6 +553,13 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 {tool === 'set_target' && "Mark destination"}
             </div>
             <div className="flex gap-2">
+                {/* NEW CENTER BUTTON */}
+                <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
                 <button onClick={handleZoomOut} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
                 </button>
