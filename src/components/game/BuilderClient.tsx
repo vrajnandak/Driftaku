@@ -39,14 +39,38 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   
-  // Submission & Loading States
+  // Modal States
+  const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
+  const [isModalExpanded, setIsModalExpanded] = useState(false); // NEW: Expanded Modal State
+  
+  // Submission States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false); // NEW: Auto-Gen State
+  const [isGenerating, setIsGenerating] = useState(false); 
+
+  // Reset modal expansion when a new node is selected
+  useEffect(() => {
+    setIsModalExpanded(false);
+  }, [infoModalNode]);
+
+  // NEW: Dynamically calculate unlinked neighbors for the Info Modal
+  const unlinkedNeighbors = useMemo(() => {
+      if (!infoModalNode) return [];
+      return builderData.nodes.filter(n => {
+          if (!infoModalNode.connections.includes(n.id)) return false;
+          const edgeId = [infoModalNode.id, n.id].sort().join('::');
+          if (selectedEdges.includes(edgeId)) return false;
+          return true;
+      }).sort((a, b) => {
+          // Sort nodes that are already on the canvas to the top of the list
+          const aDep = workspace.some(w => w.id === a.id);
+          const bDep = workspace.some(w => w.id === b.id);
+          return aDep === bDep ? 0 : aDep ? -1 : 1;
+      });
+  }, [infoModalNode, selectedEdges, builderData.nodes, workspace]);
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -101,40 +125,60 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
     return false;
   }, [startNodeId, targetNodeId, selectedEdges]);
 
+  // --- NEW: QUICK DEPLOY NEIGHBOR LOGIC ---
+  const handleQuickAddNeighbor = (neighbor: GameNode) => {
+      if (!infoModalNode) return;
+      const edgeId = [infoModalNode.id, neighbor.id].sort().join('::');
+      
+      const isDeployed = workspace.some(n => n.id === neighbor.id);
+      if (!isDeployed) {
+          if (workspace.length >= builderData.config.maxNodes) {
+              alert("Maximum graph size reached!");
+              return;
+          }
+          // Spawn slightly offset from the infoModalNode to create a nice burst effect
+          const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
+          const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
+          
+          setWorkspace(prev => [...prev, { ...neighbor, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
+      }
+
+      // Add the edge explicitly
+      setSelectedEdges(prev => prev.includes(edgeId) ? prev : [...prev, edgeId]);
+  };
+
   // --- AUTO-GENERATE LOGIC ---
   const handleAutoGenerate = () => {
     setIsGenerating(true);
     
-    // Artificial delay to allow UI overlay to render
     setTimeout(() => {
         try {
             const allNodes = builderData.nodes;
             const maxNodes = builderData.config.maxNodes;
 
-            // 1. Build Global Adjacency Map
             const adj = new Map<string, string[]>();
             allNodes.forEach(n => {
                 const validConns = n.connections.filter(cId => allNodes.some(a => a.id === cId));
-                // Shuffle array so BFS takes different routes every time
                 adj.set(n.id, validConns.sort(() => Math.random() - 0.5));
             });
 
-            // 2. Validate/Pick Start Node
             let sId = stateRef.current.startNodeId;
             let parentMap = new Map<string, string | null>();
             let reachable: string[] = [];
 
-            // Helper to run BFS
             const runBFS = (root: string) => {
                 const p = new Map<string, string | null>();
                 const depth = new Map<string, number>();
                 const q = [root];
                 p.set(root, null);
                 depth.set(root, 0);
+
                 while (q.length > 0) {
                     const curr = q.shift()!;
                     const currDepth = depth.get(curr)!;
-                    if(currDepth >= Math.floor(maxNodes*0.6)) continue; // Limit depth to avoid overly long paths and make space for red herrings.
+                    
+                    if (currDepth >= Math.floor(maxNodes * 0.6)) continue;
+
                     (adj.get(curr) || []).forEach(neighbor => {
                         if (!p.has(neighbor)) {
                             p.set(neighbor, curr);
@@ -151,24 +195,23 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
             }
 
-            // If start node was bad or missing, pick a valid random one
             if (!sId || reachable.length === 0) {
                 const validStarts = allNodes.filter(n => (adj.get(n.id)?.length || 0) > 0);
                 if (validStarts.length === 0) throw new Error("No connected nodes available in pool.");
-                sId = validStarts[Math.floor(Math.random() * validStarts.length)].id;
+                
+                const randomStart = validStarts[Math.floor(Math.random() * validStarts.length)].id;
+                sId = randomStart;
+                
                 parentMap = runBFS(sId);
                 reachable = Array.from(parentMap.keys()).filter(id => id !== sId);
             }
 
-            // 3. Validate/Pick Target Node
             let tId = stateRef.current.targetNodeId;
             if (!tId || !parentMap.has(tId)) {
                 if (reachable.length === 0) throw new Error("Graph isolation error.");
-                // Pick a random reachable node
                 tId = reachable[Math.floor(Math.random() * reachable.length)];
             }
 
-            // 4. Extract Shortest Path Edges & Nodes
             const pathNodes = new Set<string>();
             const newEdges: string[] = [];
             let curr: string | null = tId;
@@ -180,10 +223,9 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                     const edgeId = [p, curr].sort().join('::');
                     newEdges.push(edgeId);
                 }
-                curr = p ?? null;
+                curr = p ?? null; 
             }
 
-            // 5. Add Red Herrings up to maxNodes limit
             const finalNodeIds = new Set<string>(pathNodes);
             const potentialNeighbors = new Set<string>();
 
@@ -203,13 +245,10 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                 addNeighborsToPotential(pick);
             }
 
-            // 6. Update State
             const newWorkspace: GameNode[] = [];
-            // const newWarehouse: GameNode[] = [];
             
             allNodes.forEach(n => {
                 if (finalNodeIds.has(n.id)) {
-                    // Spawn nodes loosely in the center
                     newWorkspace.push({ 
                         ...n, 
                         x: 1000 + (Math.random() * 400 - 200), 
@@ -218,9 +257,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
                         vy: 0 
                     });
                 }
-                // } else {
-                //     newWarehouse.push(n);
-                // }
             });
 
             setStartNodeId(sId);
@@ -230,7 +266,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             setEdgeSourceId(null);
             setTool('move');
             
-            // Recenter Camera for good UX
             handleCenterView();
 
         } catch (err) {
@@ -239,7 +274,7 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         } finally {
             setIsGenerating(false);
         }
-    }, 800); // 800ms delay to feel deliberate
+    }, 800);
   };
 
   // --- SUBMISSION & SYNC LOGIC ---
@@ -491,21 +526,21 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
       const currentTool = stateRef.current.tool;
       
       if (currentTool === 'set_start') {
-        if (stateRef.current.startNodeId === node.id) {
-            setStartNodeId(null);
-        } else {
-            setStartNodeId(node.id);
-            if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
-        }
-        setEdgeSourceId(null);
+          if (stateRef.current.startNodeId === node.id) {
+              setStartNodeId(null);
+          } else {
+              setStartNodeId(node.id);
+              if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
+          }
+          setEdgeSourceId(null);
       } 
       else if (currentTool === 'set_target') {
-        if (stateRef.current.targetNodeId === node.id) {
-            setTargetNodeId(null);
-        } else {
-            setTargetNodeId(node.id);
-            if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
-        }
+          if (stateRef.current.targetNodeId === node.id) {
+              setTargetNodeId(null);
+          } else {
+              setTargetNodeId(node.id);
+              if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
+          }
           setEdgeSourceId(null);
       } 
       else if (currentTool === 'toggle_edge') {
@@ -670,7 +705,6 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
             </button>
             <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             
-            {/* NEW: AUTO GENERATE BUTTON */}
             <button 
                 onClick={handleAutoGenerate}
                 disabled={isSubmitting || isGenerating}
@@ -780,43 +814,93 @@ const BuilderClient: React.FC<Props> = ({ roomId, builderData }) => {
         {/* INFO MODAL */}
         {infoModalNode && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
-                  <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+              <div className={`bg-slate-900 border border-white/10 rounded-3xl p-6 ${isModalExpanded ? 'max-w-md' : 'max-w-sm'} w-full shadow-2xl relative transition-all duration-300 flex flex-col max-h-[90vh]`}>
+                  <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
-                  <div className="w-28 h-28 mx-auto rounded-2xl overflow-hidden bg-black mb-5 border-2 shadow-lg" style={{borderColor: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
-                      {infoModalNode.image && <img src={infoModalNode.image} className="w-full h-full object-cover" />}
-                  </div>
-                  <h3 className="text-2xl font-bold text-white text-center mb-1 leading-tight">{infoModalNode.name}</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-center mb-6" style={{color: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
-                      {infoModalNode.type}
-                  </p>
                   
-                  <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-white/5">
-                    <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Workspace Links</span>
-                        <span className="text-xs text-indigo-400 font-bold">{availableEdges.filter(e => e.id.includes(infoModalNode.id)).length}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Database Links</span>
-                        <span className="text-xs text-emerald-400 font-bold">{infoModalNode.connections?.length || 0}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3 mt-6">
-                    <button 
-                        onClick={() => { retractNode(infoModalNode.id); setInfoModalNode(null); }}
-                        className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 font-bold py-3 rounded-xl transition-colors text-sm"
-                    >
-                        Retract
-                    </button>
-                    <button 
-                        onClick={() => setInfoModalNode(null)}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors text-sm"
-                    >
-                        Close
-                    </button>
-                  </div>
+                  {!isModalExpanded ? (
+                      <>
+                          <div className="w-28 h-28 mx-auto rounded-2xl overflow-hidden bg-black mb-5 border-2 shadow-lg shrink-0" style={{borderColor: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                              {infoModalNode.image && <img src={infoModalNode.image} className="w-full h-full object-cover" />}
+                          </div>
+                          <h3 className="text-2xl font-bold text-white text-center mb-1 leading-tight">{infoModalNode.name}</h3>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-center mb-6 shrink-0" style={{color: `#${NODE_COLORS[infoModalNode.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                              {infoModalNode.type}
+                          </p>
+                          
+                          <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-white/5 shrink-0">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Workspace Links</span>
+                                <span className="text-xs text-indigo-400 font-bold">{availableEdges.filter(e => e.id.includes(infoModalNode.id)).length}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Database Links</span>
+                                <span className="text-xs text-emerald-400 font-bold">{infoModalNode.connections?.length || 0}</span>
+                            </div>
+                          </div>
+
+                          <button 
+                              onClick={() => setIsModalExpanded(true)}
+                              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-colors text-sm shrink-0"
+                          >
+                              Suggest Connections
+                          </button>
+                          
+                          <div className="flex gap-3 mt-3 shrink-0">
+                            <button 
+                                onClick={() => { retractNode(infoModalNode.id); setInfoModalNode(null); }}
+                                className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 font-bold py-3 rounded-xl transition-colors text-sm"
+                            >
+                                Retract
+                            </button>
+                            <button 
+                                onClick={() => setInfoModalNode(null)}
+                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+                            >
+                                Close
+                            </button>
+                          </div>
+                      </>
+                  ) : (
+                      <>
+                          <div className="flex items-center gap-3 mb-4 shrink-0">
+                              <button onClick={() => setIsModalExpanded(false)} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                                  Back
+                              </button>
+                              <h3 className="text-lg font-bold text-white ml-2">Add Connections</h3>
+                          </div>
+                          
+                          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2 min-h-[300px]">
+                              {unlinkedNeighbors.length === 0 && <p className="text-slate-500 text-center text-xs py-10 font-bold uppercase tracking-widest">No available connections</p>}
+                              {unlinkedNeighbors.map(neighbor => {
+                                  const isDep = workspace.some(n => n.id === neighbor.id);
+                                  return (
+                                      <div key={neighbor.id} className="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                                          <div className="flex items-center gap-3 min-w-0">
+                                              <div className="w-10 h-10 rounded-lg bg-black overflow-hidden shrink-0 border border-white/10">
+                                                 {neighbor.image && <img src={neighbor.image} className="w-full h-full object-cover" />}
+                                              </div>
+                                              <div className="min-w-0">
+                                                  <p className="text-white text-[11px] font-bold truncate leading-tight">{neighbor.name}</p>
+                                                  <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: `#${NODE_COLORS[neighbor.type as keyof typeof NODE_COLORS]?.toString(16)}`}}>
+                                                      {neighbor.type} {isDep && <span className="text-slate-500 ml-1">• In Web</span>}
+                                                  </p>
+                                              </div>
+                                          </div>
+                                          <button 
+                                             onClick={() => handleQuickAddNeighbor(neighbor)}
+                                             className="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shrink-0 active:scale-95"
+                                          >
+                                             {isDep ? 'Link' : 'Deploy'}
+                                          </button>
+                                      </div>
+                                  )
+                              })}
+                          </div>
+                      </>
+                  )}
               </div>
           </div>
         )}
