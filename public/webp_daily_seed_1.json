@@ -1,0 +1,788 @@
+{
+  "metadata": {
+    "level": 1,
+    "start_node": "anime_1",
+    "start_name": "Cowboy Bebop",
+    "end_node": "anime_1735",
+    "end_name": "Naruto: Shippuden",
+    "total_nodes": 50
+  },
+  "nodes": [
+    {
+      "id": "char_1901",
+      "type": "Anime character",
+      "name": "Sai",
+      "native_name": "サイ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1901.webp",
+      "connections": [
+        "anime_1735",
+        "va_95245"
+      ]
+    },
+    {
+      "id": "char_1900",
+      "type": "Anime character",
+      "name": "Sasori",
+      "native_name": "サソリ",
+      "alternative_names": [
+        "Akasuna no Sasori (赤砂のサソリ)",
+        "Sasori of the Red Sand"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1900.webp",
+      "connections": [
+        "anime_1735",
+        "va_95079"
+      ]
+    },
+    {
+      "id": "char_252219",
+      "type": "Anime character",
+      "name": "Dig",
+      "native_name": "ディグ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_252219.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "char_165883",
+      "type": "Anime character",
+      "name": "Iresumi Otoko",
+      "native_name": "イレズミ男",
+      "alternative_names": [
+        "Weapon Shop Owner"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_165883.webp",
+      "connections": [
+        "anime_1",
+        "va_95063"
+      ]
+    },
+    {
+      "id": "char_16",
+      "type": "Anime character",
+      "name": "Edward Wong Hau Pepelu Tivrusky IV",
+      "native_name": "エドワード・ウォン・ハウ・ペペル・チブルスキー4世",
+      "alternative_names": [
+        "Edward IV",
+        "Ed",
+        "Radical Ed",
+        "Radical Edward",
+        "Ed the Hacker",
+        "Françoise"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_16.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "anime_20",
+      "type": "Anime",
+      "name": "Naruto",
+      "romaji": "NARUTO",
+      "native": "NARUTO -ナルト-",
+      "synonyms": [
+        "נארוטו",
+        "ناروتو",
+        "火影忍者",
+        "นารูโตะ นินจาจอมคาถา",
+        "Наруто"
+      ],
+      "description": "Naruto Uzumaki, a hyperactive and knuckle-headed ninja, lives in Konohagakure, the Hidden Leaf village. Moments prior to his birth, a huge demon known as the Kyuubi, the Nine-tailed Fox, attacked Konohagakure and wreaked havoc. In order to put an end to the Kyuubi's rampage, the leader of the village, the 4th Hokage, sacrificed his life and sealed the monstrous beast inside the newborn Naruto. \n\n\nShunned because of the presence of the Kyuubi inside him, Naruto struggles to find his place in the village. He strives to become the Hokage of Konohagakure, and he meets many friends and foes along the way. \n\n\n(Source: MAL Rewrite)",
+      "image": "/assets/nodes/anime_20.webp",
+      "connections": [
+        "studio_1",
+        "char_17",
+        "char_13",
+        "char_85",
+        "char_145",
+        "char_14",
+        "char_306",
+        "char_307",
+        "char_728",
+        "char_809",
+        "char_1555",
+        "char_1662",
+        "char_1694",
+        "char_1902"
+      ]
+    },
+    {
+      "id": "char_23740",
+      "type": "Anime character",
+      "name": "Andy Von de Oniyate",
+      "native_name": "アンディ・フォン・デ・オニアテ",
+      "alternative_names": [
+        "Wyatt Earp",
+        "Cowboy Andy",
+        "Musashi"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_23740.webp",
+      "connections": [
+        "anime_1",
+        "va_95179"
+      ]
+    },
+    {
+      "id": "char_29313",
+      "type": "Anime character",
+      "name": "Tongpu",
+      "native_name": "東風",
+      "alternative_names": [
+        "Mad Pierrot"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_29313.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "va_95079",
+      "type": "Voice Actor",
+      "name": "Takahiro Sakurai",
+      "native_name": "櫻井孝宏",
+      "image": "/assets/nodes/va_95079.webp",
+      "connections": [
+        "char_1900"
+      ]
+    },
+    {
+      "id": "va_95357",
+      "type": "Voice Actor",
+      "name": "Unshou Ishizuka",
+      "native_name": "石塚運昇",
+      "image": "/assets/nodes/va_95357.webp",
+      "connections": [
+        "char_728",
+        "char_3"
+      ]
+    },
+    {
+      "id": "char_14",
+      "type": "Anime character",
+      "name": "Itachi Uchiha",
+      "native_name": "うちはイタチ",
+      "alternative_names": [
+        "Sharingan no Itachi (写輪眼のイタチ)",
+        "Itachi of the Sharingan"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_14.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "va_95179",
+      "type": "Voice Actor",
+      "name": "Masashi Ebara",
+      "native_name": "江原正士",
+      "image": "/assets/nodes/va_95179.webp",
+      "connections": [
+        "char_307",
+        "char_23740"
+      ]
+    },
+    {
+      "id": "char_145",
+      "type": "Anime character",
+      "name": "Sakura Haruno",
+      "native_name": "春野サクラ",
+      "alternative_names": [],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_145.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "char_23611",
+      "type": "Anime character",
+      "name": "Udai Taxim",
+      "native_name": "ウダイ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_23611.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "char_13249",
+      "type": "Anime character",
+      "name": "Appledelhi Siniz Hesap Lütfen",
+      "native_name": "アップルデリー・シニズ・ヘサップ・リュトフェン",
+      "alternative_names": [
+        "Afedersiniz Hesap Lutfen"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_13249.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "anime_20605",
+      "type": "Anime",
+      "name": "Tokyo Ghoul",
+      "romaji": "Tokyo Ghoul",
+      "native": "東京喰種 トーキョーグール",
+      "synonyms": [
+        "Tokyo Kushu",
+        "שדי טוקיו",
+        "东京食种",
+        "طوكيو غول",
+        "Токийский гуль"
+      ],
+      "description": "The suspense horror/dark fantasy story is set in Tokyo, which is haunted by mysterious 'ghouls' who are devouring humans. People are gripped by the fear of these ghouls whose identities are masked in mystery. An ordinary college student named Kaneki encounters Rize, a girl who is an avid reader like him, at the café he frequents. Little does he realize that his fate will change overnight.\n\n\n\n(Source: Anime News Network)",
+      "image": "/assets/nodes/anime_20605.webp",
+      "connections": [
+        "studio_1"
+      ]
+    },
+    {
+      "id": "char_1662",
+      "type": "Anime character",
+      "name": "Gaara",
+      "native_name": "我愛羅",
+      "alternative_names": [
+        "Gaara of the Desert",
+        "Sabaku no Gaara"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1662.webp",
+      "connections": [
+        "anime_20",
+        "va_95017",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "char_728",
+      "type": "Anime character",
+      "name": "Zabuza Momochi",
+      "native_name": "桃地再不斬",
+      "alternative_names": [
+        "Kirigakure no Kijin (霧隠れの鬼人)",
+        "Demon of the Hidden Mist"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_728.webp",
+      "connections": [
+        "anime_20",
+        "va_95357",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "char_214430",
+      "type": "Anime character",
+      "name": "Pinryuu",
+      "native_name": "ピン龍",
+      "alternative_names": [
+        "Ping"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_214430.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "anime_97940",
+      "type": "Anime",
+      "name": "Black Clover",
+      "romaji": "Black Clover",
+      "native": "ブラッククローバー",
+      "synonyms": [
+        "תלתן שחור",
+        "แบล็กโคลเวอร์",
+        "Чёрный клевер"
+      ],
+      "description": "In a world where magic is everything, Asta and Yuno are both found abandoned at a church on the same day. While Yuno is gifted with exceptional magical powers, Asta is the only one in this world without any. At the age of fifteen, both receive grimoires, magic books that amplify their holder’s magic. Asta’s is a rare Grimoire of Anti-Magic that negates and repels his opponent’s spells. Being opposite but good rivals, Yuno and Asta are ready for the hardest of challenges to achieve their common dream: to be the Wizard King. Giving up is never an option!\n\n\n\n(Source: Crunchyroll)",
+      "image": "/assets/nodes/anime_97940.webp",
+      "connections": [
+        "studio_1"
+      ]
+    },
+    {
+      "id": "char_4",
+      "type": "Anime character",
+      "name": "Ein",
+      "native_name": "アイン",
+      "alternative_names": [
+        "Poochie"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_4.webp",
+      "connections": [
+        "anime_1",
+        "va_95011"
+      ]
+    },
+    {
+      "id": "char_13",
+      "type": "Anime character",
+      "name": "Sasuke Uchiha",
+      "native_name": "うちはサスケ",
+      "alternative_names": [
+        "The Uchiha Survivor",
+        "The Last Uchiha",
+        "Sasuke of the Sharingan"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_13.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "anime_20850",
+      "type": "Anime",
+      "name": "Tokyo Ghoul √A",
+      "romaji": "Tokyo Ghoul √A",
+      "native": "東京喰種[トーキョーグール]√A",
+      "synonyms": [
+        "Tokyo Kushu 2",
+        "Tokyo Ghoul Root A"
+      ],
+      "description": "The second season of Tokyo Ghoul.\n\nThe ghouls of Anteiku invaded the Aogiri's site in order to rescue Ken Kaneki who is being tortured. Due to provocation, he unleashed greater power enough to defeat Yamori. To become stronger, he decided to join Aogiri and left Anteiku. Ghoul investigators also making their moves by collecting information about the eye-patched ghoul - Ken Kaneki.\n\n(Source: Anime News Network)",
+      "image": "/assets/nodes/anime_20850.webp",
+      "connections": [
+        "studio_1"
+      ]
+    },
+    {
+      "id": "va_95245",
+      "type": "Voice Actor",
+      "name": "Satoshi Hino",
+      "native_name": "日野聡",
+      "image": "/assets/nodes/va_95245.webp",
+      "connections": [
+        "char_1901"
+      ]
+    },
+    {
+      "id": "studio_1",
+      "type": "Studio",
+      "name": "Studio Pierrot",
+      "connections": [
+        "anime_20605",
+        "anime_20",
+        "anime_1735",
+        "anime_97940",
+        "anime_269",
+        "anime_20850"
+      ]
+    },
+    {
+      "id": "va_95021",
+      "type": "Voice Actor",
+      "name": "Kazuhiko Inoue",
+      "native_name": "井上和彦",
+      "image": "/assets/nodes/va_95021.webp",
+      "connections": [
+        "char_85"
+      ]
+    },
+    {
+      "id": "char_1555",
+      "type": "Anime character",
+      "name": "Hinata Hyuuga",
+      "native_name": "日向ヒナタ",
+      "alternative_names": [
+        "Byakugan Princess (白眼の姫)",
+        "Byakugan no Hime"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1555.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "char_85",
+      "type": "Anime character",
+      "name": "Kakashi Hatake",
+      "native_name": "はたけカカシ",
+      "alternative_names": [
+        "The Copy Ninja",
+        "Kakashi of the Sharingan",
+        "Sukea"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_85.webp",
+      "connections": [
+        "anime_20",
+        "va_95021",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "studio_14",
+      "type": "Studio",
+      "name": "Sunrise",
+      "connections": [
+        "anime_1575",
+        "anime_1"
+      ]
+    },
+    {
+      "id": "char_1694",
+      "type": "Anime character",
+      "name": "Neji Hyuuga",
+      "native_name": "日向ネジ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1694.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "va_95063",
+      "type": "Voice Actor",
+      "name": "Keiji Fujiwara",
+      "native_name": "藤原啓治",
+      "image": "/assets/nodes/va_95063.webp",
+      "connections": [
+        "char_165883"
+      ]
+    },
+    {
+      "id": "char_2",
+      "type": "Anime character",
+      "name": "Faye Valentine",
+      "native_name": "フェイ・バレンタイン",
+      "alternative_names": [
+        "Poker Alice",
+        "Queen of Hearts",
+        "Romani"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_2.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "va_95011",
+      "type": "Voice Actor",
+      "name": "Kouichi Yamadera",
+      "native_name": "山寺宏一",
+      "image": "/assets/nodes/va_95011.webp",
+      "connections": [
+        "char_1",
+        "char_4"
+      ]
+    },
+    {
+      "id": "char_214420",
+      "type": "Anime character",
+      "name": "Mago",
+      "native_name": "孫",
+      "alternative_names": [
+        "Sally's grandchild"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_214420.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "va_95017",
+      "type": "Voice Actor",
+      "name": "Akira Ishida",
+      "native_name": "石田彰",
+      "image": "/assets/nodes/va_95017.webp",
+      "connections": [
+        "char_1662"
+      ]
+    },
+    {
+      "id": "char_306",
+      "type": "Anime character",
+      "name": "Rock Lee",
+      "native_name": "ロック・リー",
+      "alternative_names": [
+        "Bushy Brows",
+        "The Green Beast of Konoha"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_306.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "anime_1735",
+      "type": "Anime",
+      "name": "Naruto: Shippuden",
+      "romaji": "NARUTO: Shippuuden",
+      "native": "NARUTO -ナルト- 疾風伝",
+      "synonyms": [
+        "Naruto Shippuuden",
+        "Naruto Shippuden",
+        "נארוטו שיפודן",
+        "火影忍者 疾风传",
+        "นารูโตะ ตำนานวายุสลาตัน",
+        "ناروتو شيبودن",
+        "Наруто: Ураганные хроники"
+      ],
+      "description": "Naruto: Shippuuden is the continuation of the original animated TV series Naruto. The story revolves around an older and slightly more matured Uzumaki Naruto and his quest to save his friend Uchiha Sasuke from the grips of the snake-like Shinobi, Orochimaru. After 2 and a half years Naruto finally returns to his village of Konoha, and sets about putting his ambitions to work, though it will not be easy, as he has amassed a few (more dangerous) enemies, in the likes of the shinobi organization; Akatsuki. \n\n\n(Source: Anime News Network)",
+      "image": "/assets/nodes/anime_1735.webp",
+      "connections": [
+        "studio_1",
+        "char_17",
+        "char_13",
+        "char_145",
+        "char_85",
+        "char_14",
+        "char_306",
+        "char_307",
+        "char_728",
+        "char_809",
+        "char_1555",
+        "char_1662",
+        "char_1694",
+        "char_1900",
+        "char_1901",
+        "char_1902"
+      ]
+    },
+    {
+      "id": "anime_1",
+      "type": "Anime",
+      "name": "Cowboy Bebop",
+      "romaji": "Cowboy Bebop",
+      "native": "カウボーイビバップ",
+      "synonyms": [
+        "카우보이 비밥",
+        "קאובוי ביבופ",
+        "คาวบอย บีบ๊อป",
+        "Ковбой Бибоп",
+        "Καουμπόηδες του Διαστήματος",
+        "Kowboj Bebop"
+      ],
+      "description": "Enter a world in the distant future, where Bounty Hunters roam the solar system. Spike and Jet, bounty hunting partners, set out on journeys in an ever struggling effort to win bounty rewards to survive.\n\n\nWhile traveling, they meet up with other very interesting people. Could Faye, the beautiful and ridiculously poor gambler, Edward, the computer genius, and Ein, the engineered dog be a good addition to the group?",
+      "image": "/assets/nodes/anime_1.webp",
+      "connections": [
+        "studio_14",
+        "char_1",
+        "char_3",
+        "char_2",
+        "char_16",
+        "char_13249",
+        "char_29313",
+        "char_37186",
+        "char_23611",
+        "char_214420",
+        "char_214430",
+        "char_252219",
+        "char_4",
+        "char_23740",
+        "char_38884",
+        "char_165883"
+      ]
+    },
+    {
+      "id": "va_95041",
+      "type": "Voice Actor",
+      "name": "Takako Honda",
+      "native_name": "本田貴子",
+      "image": "/assets/nodes/va_95041.webp",
+      "connections": [
+        "char_809"
+      ]
+    },
+    {
+      "id": "anime_269",
+      "type": "Anime",
+      "name": "Bleach",
+      "romaji": "BLEACH",
+      "native": "BLEACH",
+      "synonyms": [
+        "ブリーチ",
+        "'בליץ",
+        "เทพมรณะ",
+        "بليتش",
+        "Блич"
+      ],
+      "description": "Ichigo Kurosaki is a rather normal high school student apart from the fact he has the ability to see ghosts. This ability never impacted his life in a major way until the day he encounters the Shinigami Kuchiki Rukia, who saves him and his family's lives from a Hollow, a corrupt spirit that devours human souls. \n\n\n\nWounded during the fight against the Hollow, Rukia chooses the only option available to defeat the monster and passes her Shinigami powers to Ichigo. Now forced to act as a substitute until Rukia recovers, Ichigo hunts down the Hollows that plague his town. \n\n\n",
+      "image": "/assets/nodes/anime_269.webp",
+      "connections": [
+        "studio_1"
+      ]
+    },
+    {
+      "id": "char_809",
+      "type": "Anime character",
+      "name": "Anko Mitarashi",
+      "native_name": "みたらしアンコ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_809.webp",
+      "connections": [
+        "anime_20",
+        "va_95041",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "anime_1575",
+      "type": "Anime",
+      "name": "Code Geass: Lelouch of the Rebellion",
+      "romaji": "Code Geass: Hangyaku no Lelouch",
+      "native": "コードギアス 反逆のルルーシュ",
+      "synonyms": [
+        "Code Geass: Lelouch de la Rebelión",
+        "קוד גיאס: המהפכה של ללוש"
+      ],
+      "description": "On August 10th of the year 2010 the Holy Empire of Britannia began a campaign of conquest, its sights set on Japan. Operations were completed in one month thanks to Britannia's deployment of new mobile humanoid armor vehicles dubbed Knightmare Frames. Japan's rights and identity were stripped away, the once proud nation now referred to as Area 11. Its citizens, Elevens, are forced to scratch out a living while the Britannian aristocracy lives comfortably within their settlements. Pockets of resistance appear throughout Area 11, working towards independence for Japan.\n\n\n Lelouch, an exiled Imperial Prince of Britannia posing as a student, finds himself in the heart of the ongoing conflict for the island nation. Through a chance meeting with a mysterious girl named C.C., Lelouch gains his Geass, the power of the king. Now endowed with absolute dominance over any person, Lelouch may finally realize his goal of bringing down Britannia from within!\n\n\n(Source: Bandai Entertainment)",
+      "image": "/assets/nodes/anime_1575.webp",
+      "connections": [
+        "studio_14"
+      ]
+    },
+    {
+      "id": "char_307",
+      "type": "Anime character",
+      "name": "Guy Might",
+      "native_name": "マイト・ガイ",
+      "alternative_names": [
+        "Leaf's Noble Green Beast",
+        "Konoha no Kedakaki Aoi Moujuu (木ノ葉の気高き碧い猛獣)",
+        "Bushier Brows Sensei",
+        "Gekimayu-sensei (ゲキマユ先生)"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_307.webp",
+      "connections": [
+        "anime_20",
+        "va_95179",
+        "anime_1735",
+        "va_103675"
+      ]
+    },
+    {
+      "id": "char_17",
+      "type": "Anime character",
+      "name": "Naruto Uzumaki",
+      "native_name": "うずまきナルト",
+      "alternative_names": [
+        "Nine-Tails Jinchuuriki",
+        "The Show-Off",
+        "Number One Unpredictable",
+        "Noisy Ninja",
+        "Number One Hyperactive",
+        "Knucklehead Ninja",
+        "Fox"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_17.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "char_1902",
+      "type": "Anime character",
+      "name": "Deidara",
+      "native_name": "デイダラ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_1902.webp",
+      "connections": [
+        "anime_20",
+        "anime_1735"
+      ]
+    },
+    {
+      "id": "va_103675",
+      "type": "Voice Actor",
+      "name": "Mayuki Makiguchi",
+      "native_name": "牧口真幸",
+      "image": "/assets/nodes/va_103675.webp",
+      "connections": [
+        "char_307"
+      ]
+    },
+    {
+      "id": "char_38884",
+      "type": "Anime character",
+      "name": "Teddy Bomber",
+      "native_name": "テディ・ボマー",
+      "alternative_names": [
+        "Ted Bower"
+      ],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_38884.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "char_3",
+      "type": "Anime character",
+      "name": "Jet Black",
+      "native_name": "ジェット・ブラック",
+      "alternative_names": [
+        "Running Rock",
+        "Black Dog",
+        "Jet Jet"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_3.webp",
+      "connections": [
+        "anime_1",
+        "va_95357"
+      ]
+    },
+    {
+      "id": "char_37186",
+      "type": "Anime character",
+      "name": "Miles",
+      "native_name": "マイルズ",
+      "alternative_names": [],
+      "characterRole": "SUPPORTING",
+      "image": "/assets/nodes/char_37186.webp",
+      "connections": [
+        "anime_1"
+      ]
+    },
+    {
+      "id": "char_1",
+      "type": "Anime character",
+      "name": "Spike Spiegel",
+      "native_name": "スパイク・スピーゲル",
+      "alternative_names": [
+        "Spike Spike",
+        "Swimming Bird"
+      ],
+      "characterRole": "MAIN",
+      "image": "/assets/nodes/char_1.webp",
+      "connections": [
+        "anime_1",
+        "va_95011"
+      ]
+    }
+  ]
+}

@@ -2,19 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
-import { createNodeSprite, updateNodeVisuals } from '../utils/pixiRenderer';
-import { initSimulation } from '../utils/simulation';
-import { NODE_COLORS, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
+import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
 import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 
 interface Props {
-  shortestPath?: string[];
-  enhancedLevelData: LevelData;
+  levelData: LevelData;
+  intendedPath?: string[]; // Edge IDs like "123::456"
   onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin }) => {
+const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
@@ -22,28 +20,27 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
   const appRef = useRef<PIXI.Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
   const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
-  const spriteMap = useRef<Record<string, NodeVisuals>>({});
+  const spriteMap = useRef<Record<number, NodeVisuals>>({});
   const nodeLayerRef = useRef<PIXI.Container | null>(null);
   const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-
   const targetZoomRef = useRef<number | null>(null);
 
   // Timer state
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
   const timerRef = useRef<number | null>(null);
 
-  // React State
+  // React State (Using numbers for IDs)
   const [workspaceNodes, setWorkspaceNodes] = useState<GameNode[]>([]);
   const [warehouseNodes, setWarehouseNodes] = useState<GameNode[]>([]);
   const [userLinks, setUserLinks] = useState<UserLink[]>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [tool, setTool] = useState<'select' | 'link'>('select');
   const [isWon, setIsWon] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLegendOpen, setIsLegendOpen] = useState(false);
-  const [activeInfo, setActiveInfo] = useState<{name: string, type: string, x: number, y: number} | null>(null);
-  const [uiPath, setUiPath] = useState<string[]>([enhancedLevelData.metadata.start_node]);
+  const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
+  const [uiPath, setUiPath] = useState<number[]>([levelData.metadata.start_node]);
   
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -51,7 +48,7 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     workspaceNodes: [] as GameNode[],
     userLinks: [] as UserLink[],
     tool: 'select' as 'select' | 'link',
-    selectedNodeId: null as string | null,
+    selectedNodeId: null as number | null,
     startTime: Date.now()
   });
 
@@ -85,10 +82,7 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       const vp = viewportRef.current;
       if (!vp) return;
       
-      // Reset our zoom tracker so mouse wheel zooming doesn't jump afterward
       targetZoomRef.current = 1; 
-
-      // D3 forces everything to (1000, 1000), so we animate the camera to that exact spot
       vp.animate({
           position: new PIXI.Point(1000, 1000),
           scale: 1,
@@ -98,12 +92,12 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       });
   };
 
-  // --- 1. INITIALIZATION & RESIZE LOGIC ---
+  // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
   useEffect(() => {
     if (!containerRef.current) return;
 
     const app = new PIXI.Application();
-    let handleResize: () => void;
+    let resizeObserver: ResizeObserver | null = null;
     
     const setup = async () => {
       PIXI.Assets.setPreferences({ preferWorkers: false, crossOrigin: 'anonymous' });
@@ -116,8 +110,8 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       appRef.current = app;
 
       const viewport = new Viewport({
-        screenWidth: app.screen.width,
-        screenHeight: app.screen.height,
+        screenWidth: containerRef.current!.clientWidth,
+        screenHeight: containerRef.current!.clientHeight,
         worldWidth: 2000,
         worldHeight: 2000,
         events: app.renderer.events
@@ -127,47 +121,71 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       viewport.on('zoomed', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      handleResize = () => {
-          if (app && viewportRef.current) {
+      // FIXED: ResizeObserver guarantees the Viewport math updates when entering Fullscreen
+      resizeObserver = new ResizeObserver(() => {
+          if (app && viewportRef.current && containerRef.current) {
               app.resize();
-              viewportRef.current.resize(app.screen.width, app.screen.height);
+              viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
           }
-      };
-      window.addEventListener('resize', handleResize);
+      });
+      resizeObserver.observe(containerRef.current!);
 
       linkLayerRef.current = new PIXI.Graphics();
       nodeLayerRef.current = new PIXI.Container();
       viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
-      simulationRef.current = initSimulation([], []);
+      simulationRef.current = d3.forceSimulation<GameNode>([])
+        .force("charge", d3.forceManyBody().strength(-800))
+        .force("collide", d3.forceCollide().radius(80))
+        .force("center", d3.forceCenter(1000, 1000))
+        .force("x", d3.forceX(1000).strength(0.02))
+        .force("y", d3.forceY(1000).strength(0.02));
 
       app.ticker.add(() => {
         if (!linkLayerRef.current) return;
-        if(simulationRef.current) simulationRef.current!.tick();
         
         linkLayerRef.current.clear();
         stateRef.current.userLinks.forEach(link => {
           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
           const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
-          if (s && t) {
-            linkLayerRef.current!.moveTo(s.x!, s.y!).lineTo(t.x!, t.y!)
+          if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
+            linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
               .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
           }
         });
 
         stateRef.current.workspaceNodes.forEach(node => {
-          const visuals = spriteMap.current[node.id];
-          if(visuals) {
-            visuals.container.x = node.x!;
-            visuals.container.y = node.y!;
-            updateNodeVisuals(visuals.bg, node, stateRef.current.selectedNodeId === node.id, enhancedLevelData.metadata.end_node);
+          const vis = spriteMap.current[node.id];
+          if(vis && node.x != null && node.y != null) {
+            vis.container.x = node.x;
+            vis.container.y = node.y;
+            
+            const isCurrent = stateRef.current.selectedNodeId === node.id;
+            const isTarget = node.id === levelData.metadata.end_node;
+            const isStart = node.id === levelData.metadata.start_node;
+
+            let strokeColor = NODE_COLORS[node.type] || 0x334155;
+            let strokeWidth = 2;
+
+            if (isCurrent) {
+                strokeColor = 0xf59e0b; // Amber for active selection tool
+                strokeWidth = 6;
+            } else if (isStart) {
+                strokeColor = SPECIAL_NODE_COLORS.Start;
+                strokeWidth = 5;
+            } else if (isTarget) {
+                strokeColor = SPECIAL_NODE_COLORS.Target;
+                strokeWidth = 5;
+            }
+
+            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
           }
         });
       });
 
-      const startNode = enhancedLevelData.nodes.find(n => n.id === enhancedLevelData.metadata.start_node)!;
-      const endNode = enhancedLevelData.nodes.find(n => n.id === enhancedLevelData.metadata.end_node)!;
-      const others = enhancedLevelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
+      const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
+      const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
+      const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
       
       setWorkspaceNodes([startNode, endNode]);
       setWarehouseNodes(others);
@@ -176,67 +194,42 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     setup();
 
     return () => {
-      if (handleResize) window.removeEventListener('resize', handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
       app.destroy(true);
     };
-  }, [enhancedLevelData]);
+  }, [levelData]);
 
   // --- 2. SYNC EFFECT ---
   useEffect(() => {
     if (!simulationRef.current || !nodeLayerRef.current) return;
 
     stateRef.current.workspaceNodes = workspaceNodes;
+    
+    // Physics Links logic for D3 to cluster connected nodes naturally
+    const d3Links = userLinks.map(l => ({ source: l.sourceId, target: l.targetId }));
     simulationRef.current.nodes(workspaceNodes);
+    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
     simulationRef.current.alpha(1).restart();
 
     workspaceNodes.forEach(node => {
       if (!spriteMap.current[node.id]) {
-        const handleInteraction = (node: GameNode, e: PIXI.FederatedPointerEvent) => {
-          if (stateRef.current.tool === 'link') {
-            handleLinkAttempt(node.id);
-          } else {
-            if (activeInfo !== null) return;
-            showNodeInfo(node, spriteMap.current[node.id].container);
-
-            node.fx = node.x;
-            node.fy = node.y;
-
-            const onMove = (event: PointerEvent) => {
-              if(!viewportRef.current || !simulationRef.current) return;
-              const movePos = viewportRef.current!.toWorld(event.clientX, event.clientY);
-              node.fx = movePos.x;
-              node.fy = movePos.y;
-              simulationRef.current?.alpha(0.3).restart();
-            };
-
-            const onUp = () => {
-              node.fx = null;
-              node.fy = null;
-
-              window.removeEventListener('pointermove', onMove);
-              window.removeEventListener('pointerup', onUp);
-            };
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onUp);
-          }
-        };
+        const vis = createNodeSprite(node);
+        vis.container.x = node.x || 1000 + (Math.random() * 200 - 100);
+        vis.container.y = node.y || 1000 + (Math.random() * 200 - 100);
         
-        const visuals = createNodeSprite(node, handleInteraction);
-        visuals.container.x = node.x || 1000 + (Math.random() * 200 - 100);
-        visuals.container.y = node.y || 1000 + (Math.random() * 200 - 100);
-        
-        nodeLayerRef.current!.addChild(visuals.container);
-        spriteMap.current[node.id] = visuals;
+        nodeLayerRef.current!.addChild(vis.container);
+        spriteMap.current[node.id] = vis;
       }
     });
 
-    Object.keys(spriteMap.current).forEach(id => {
+    Object.keys(spriteMap.current).forEach(idStr => {
+      const id = Number(idStr);
       if (!workspaceNodes.find(n => n.id === id)) {
         nodeLayerRef.current!.removeChild(spriteMap.current[id].container);
         delete spriteMap.current[id];
       }
     });
-  }, [workspaceNodes]);
+  }, [workspaceNodes, userLinks]);
 
   useEffect(() => {
     stateRef.current.userLinks = userLinks;
@@ -264,8 +257,72 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     };
   }, [isWon]);
 
+  // --- NODE SPRITE & CORRECT NATIVE DOM DRAG LOGIC ---
+  const createNodeSprite = (node: GameNode): NodeVisuals => {
+    const container = new PIXI.Container();
+    const bg = new PIXI.Graphics();
+    const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
+    
+    container.addChild(bg, icon);
+    container.eventMode = 'static';
+    container.cursor = 'pointer';
+
+    container.on('pointerdown', (e) => {
+      if (stateRef.current.tool === 'link') {
+        handleLinkAttempt(node.id);
+      } else {
+        if (activeInfo !== null) return;
+        
+        // FIXED: Capture starting canvas-local coordinates
+        const startX = e.global.x; 
+        const startY = e.global.y;
+        let hasDragged = false;
+
+        // FIXED: Using Native PointerEvent securely translated to Canvas Bounds
+        const onMove = (event: PointerEvent) => {
+          if(!viewportRef.current || !appRef.current) return;
+          
+          const rect = appRef.current.canvas.getBoundingClientRect();
+          const localX = event.clientX - rect.left;
+          const localY = event.clientY - rect.top;
+
+          if (Math.hypot(localX - startX, localY - startY) > 5) hasDragged = true;
+          
+          const movePos = viewportRef.current.toWorld(localX, localY);
+          node.fx = movePos.x;
+          node.fy = movePos.y;
+          simulationRef.current?.alpha(0.3).restart();
+        };
+
+        const onUp = () => {
+          node.fx = null;
+          node.fy = null;
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointermove', onMove);
+
+          if (!hasDragged) {
+             showNodeInfo(node, container);
+          }
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      }
+    });
+
+    if (node.image) {
+      PIXI.Assets.load(node.image).then(tex => {
+        const s = new PIXI.Sprite(tex);
+        s.anchor.set(0.5); s.width = s.height = 60;
+        const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
+        s.mask = m; container.addChild(m, s); icon.visible = false;
+      }).catch(e => console.error(e));
+    }
+    return { container, bg, icon };
+  };
+
   // --- 4. HANDLERS ---
-  const handleLinkAttempt = (targetId: string) => {
+  const handleLinkAttempt = (targetId: number) => {
     const currentSelectedId = stateRef.current.selectedNodeId;
 
     if (!currentSelectedId) {
@@ -277,37 +334,31 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
         setSelectedNodeId(null);
         return;
       }
-
-      const linkExists = stateRef.current.userLinks.some(
-        l => (l.sourceId === currentSelectedId && l.targetId === targetId) || 
-             (l.sourceId === targetId && l.targetId === currentSelectedId)
-      );
-
-      if (linkExists) {
-        alert("This connection already exists!");
-        stateRef.current.selectedNodeId = null;
-        setSelectedNodeId(null);
-        return;
-      }
       
-      const nodeA = enhancedLevelData.nodes.find(n => n.id === currentSelectedId);
-      const nodeB = enhancedLevelData.nodes.find(n => n.id === targetId);
+      const nodeA = levelData.nodes.find((n: GameNode) => n.id === currentSelectedId);
+      const nodeB = levelData.nodes.find((n: GameNode) => n.id === targetId);
       const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(currentSelectedId);
 
       if (isConnected) {
-        const newLink = { sourceId: currentSelectedId, targetId };
-        const updatedLinks = [...stateRef.current.userLinks, newLink];
+        const linkExists = stateRef.current.userLinks.some(
+          l => (l.sourceId === currentSelectedId && l.targetId === targetId) || 
+               (l.sourceId === targetId && l.targetId === currentSelectedId)
+        );
 
-        stateRef.current.userLinks = updatedLinks;
-        stateRef.current.selectedNodeId = null;
-        setSelectedNodeId(null);
-        setUserLinks(updatedLinks);
-        checkWinCondition(updatedLinks);
+        if (linkExists) {
+          alert("This connection already exists!");
+        } else {
+          const newLink = { sourceId: currentSelectedId, targetId };
+          const updatedLinks = [...stateRef.current.userLinks, newLink];
+          setUserLinks(updatedLinks);
+          checkWinCondition(updatedLinks);
+        }
       } else {
         alert(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`);
-        stateRef.current.selectedNodeId = null;
-        setSelectedNodeId(null);
       }
+      
+      stateRef.current.selectedNodeId = null;
+      setSelectedNodeId(null);
     }
   };
 
@@ -316,20 +367,16 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     setWarehouseNodes(prev => prev.filter(n => n.id !== node.id));
   };
 
-  const retractNode = (nodeId: string) => {
-    if (nodeId === enhancedLevelData.metadata.start_node || nodeId === enhancedLevelData.metadata.end_node) return;
+  const retractNode = (nodeId: number) => {
+    if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
     const node = workspaceNodes.find(n => n.id === nodeId)!;
     setWarehouseNodes(prev => [...prev, node]);
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
-    setUserLinks(prev => {
-      const filtered = prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId);
-      stateRef.current.userLinks = filtered;
-      return filtered;
-    });
+    setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
   };
 
-  const checkWinCondition = (links: {sourceId: string, targetId: string}[]) => {
-    const adj = new Map<string, string[]>();
+  const checkWinCondition = (links: UserLink[]) => {
+    const adj = new Map<number, number[]>();
     links.forEach(l => {
       if (!adj.has(l.sourceId)) adj.set(l.sourceId, []);
       if (!adj.has(l.targetId)) adj.set(l.targetId, []);
@@ -337,13 +384,13 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       adj.get(l.targetId)!.push(l.sourceId);
     });
 
-    const queue: [string, string[]][] = [[enhancedLevelData.metadata.start_node, [enhancedLevelData.metadata.start_node]]];
-    const visited = new Set([enhancedLevelData.metadata.start_node]);
+    const queue: [number, number[]][] = [[levelData.metadata.start_node, [levelData.metadata.start_node]]];
+    const visited = new Set([levelData.metadata.start_node]);
     
     while (queue.length > 0) {
       const [curr, path] = queue.shift()!;
       
-      if (curr === enhancedLevelData.metadata.end_node) {
+      if (curr === levelData.metadata.end_node) {
         const finalTime = ((Date.now() - stateRef.current.startTime) / 1000);
         if(timerRef.current) clearInterval(timerRef.current);
         setTimerDisplay(finalTime.toFixed(1));
@@ -362,16 +409,12 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
     }
   };
 
-  const toggleSidebar = () => {
-    const newState = !isSidebarOpen;
-    setIsSidebarOpen(newState);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const showNodeInfo = (node: GameNode, container: PIXI.Container) => {
-    if (tool !== 'select') return;
-
-    viewportRef.current!.pause = true; 
-    const screenPos = viewportRef.current!.toScreen(container.x, container.y);
+    if (!viewportRef.current) return;
+    viewportRef.current.pause = true; 
+    const screenPos = viewportRef.current.toScreen(container.x, container.y);
     
     setActiveInfo({
       name: node.name,
@@ -418,7 +461,10 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
                                 node.name.toLowerCase().includes(searchQuery.toLowerCase())
                             );
 
-                            return filteredNodes.map(node => (
+                            return filteredNodes.map(node => {
+                                const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
+                                const colorStr = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`;
+                                return (
                                 <div 
                                     key={node.id} 
                                     onClick={() => deployNode(node)} 
@@ -429,12 +475,12 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{color: `#${NODE_COLORS[node.type as keyof typeof NODE_COLORS]?.toString(16).padStart(6, '0')}`}}>
-                                            {node.type}
+                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{color: colorStr}}>
+                                            {typeStr}
                                         </p>
                                     </div>
                                 </div>
-                            ));
+                            )});
                         })()}
                     </div>
                   </div>
@@ -455,10 +501,10 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
       {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
-        {/* PIXI CANVAS PINNED (z-10 absolute so it doesn't push UI) */}
+        {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
 
-        {/* TOOLBAR (z-30 pointer-events-auto) */}
+        {/* TOOLBAR */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
             <button 
                 onClick={() => {setTool('select'); stateRef.current.tool='select';}}
@@ -480,7 +526,7 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
             </button>
         </div>
 
-        {/* CONTROLS (z-30 pointer-events-none wrapping auto children) */}
+        {/* CONTROLS */}
         <div className="absolute top-6 right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
           
           <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
@@ -489,7 +535,6 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
           </div>
 
           <div className="flex gap-2 pointer-events-auto">
-            {/* NEW CENTER BUTTON */}
             <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -512,13 +557,13 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
           </div>
         </div>
 
-        {/* BOTTOM UI (z-30 pointer-events-none wrapping auto children) */}
+        {/* BOTTOM UI (Retraction Bar) */}
         <div className="absolute bottom-6 left-6 right-6 z-30 pointer-events-none">
             <div className="flex gap-2 overflow-x-auto pb-1 pr-2 pointer-events-auto max-w-full no-scrollbar">
                 {workspaceNodes.map(node => (
                     <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg">
                         <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
-                        {node.id !== enhancedLevelData.metadata.start_node && node.id !== enhancedLevelData.metadata.end_node && (
+                        {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
                             <button 
                                 onClick={() => retractNode(node.id)}
                                 className="w-5 h-5 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs"
@@ -537,9 +582,9 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
               <VictoryModal 
                   onNext={() => window.location.href='/'} 
                   time={parseFloat(timerDisplay)} 
-                  shortestPath={shortestPath} 
-                  userPath={uiPath}
-                  nodes={enhancedLevelData.nodes}
+                  shortestPath={intendedPath?.map(String)} 
+                  userPath={uiPath.map(String)}            
+                  nodes={levelData.nodes}
               />
             </div>
         )}
@@ -550,13 +595,16 @@ const GameClient: React.FC<Props> = ({ shortestPath, enhancedLevelData, onWin })
             </div>
         )}
 
+        {/* FLOATING INFO LABEL */}
         {activeInfo && (
           <div 
             className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200"
             style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}
           >
             <p className="text-white font-bold text-xs">{activeInfo.name}</p>
-            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">{activeInfo.type}</p>
+            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">
+                {TYPE_MAP[activeInfo.type as keyof typeof TYPE_MAP] || "Unknown"}
+            </p>
           </div>
         )}
       </div>

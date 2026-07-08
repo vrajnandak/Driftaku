@@ -7,8 +7,8 @@ const FriendsLobbyForm: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
 
   // Create State (Configurations)
-  const [buildTime, setBuildTime] = useState(300); // 5 minutes
-  const [solveTime, setSolveTime] = useState(300); // 5 minutes
+  const [buildTime, setBuildTime] = useState(300); 
+  const [solveTime, setSolveTime] = useState(300); 
   const [maxNodes, setMaxNodes] = useState(50);
   const [allowedNodes, setAllowedNodes] = useState({
     anime: true,
@@ -17,18 +17,34 @@ const FriendsLobbyForm: React.FC = () => {
     studio: true,
   });
   const [yearRange, setYearRange] = useState({ min: 1990, max: 2026 });
-  const [popularity, setPopularity] = useState('all'); // all, popular, niche
-  const [isCreating, setIsCreating] = useState(false);  //to display on the button
+  
+  // MODIFIED: Match these strings to your Python script's output
+  const [popularity, setPopularity] = useState('All Anime'); 
+  
+  const [isCreating, setIsCreating] = useState(false);
 
-    useEffect(() => {
-        const savedName = localStorage.getItem('driftaku_player_name') || '';
-        setPlayerName(savedName);
-    }, []);
+  // Logic: Hierarchical node dependencies
+  useEffect(() => {
+    if (!allowedNodes.character) {
+        setAllowedNodes(prev => ({ ...prev, voiceActor: false }));
+    }
+  }, [allowedNodes.character]);
 
-    const handleNameChange = (val: string) => {
-        setPlayerName(val);
-        setLocalPlayerName(val);
-    };
+  useEffect(() => {
+    if (!allowedNodes.anime) {
+        setAllowedNodes(prev => ({ ...prev, studio: false }));
+    }
+  }, [allowedNodes.anime]);
+
+  useEffect(() => {
+      const savedName = localStorage.getItem('driftaku_player_name') || '';
+      setPlayerName(savedName);
+  }, []);
+
+  const handleNameChange = (val: string) => {
+      setPlayerName(val);
+      setLocalPlayerName(val);
+  };
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,16 +63,49 @@ const FriendsLobbyForm: React.FC = () => {
         alert("Please enter a display name first.");
         return;
     }
+    
+    // Basic validation
+    if (yearRange.min > yearRange.max) {
+        alert("Release Era: Start year cannot be greater than end year.");
+        return;
+    }
+
     setIsCreating(true);
-    // Generate a random 6-character room code
     const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const { playerId } = getLocalPlayerId();
+
+    const { data: allPools, error: allPoolsError } = await supabase.from('draft_pools').select('id, popularity_tier, era_min, era_max').limit(5);
+    
+    console.log("Database contents (first 5 pools):", allPools);
+
+    //1. Query the superbase to Find a matching draft pool.
+    let poolQuery = supabase.from('draft_pools').select('id');
+    if(popularity!=='All Anime') {
+      poolQuery = poolQuery.eq('popularity_tier', popularity);
+    }
+    // poolQuery = poolQuery.gte('era_min', yearRange.min).lte('era_max', yearRange.max);
+    poolQuery = poolQuery.lte('era_min', yearRange.max).gte('era_max', yearRange.min);
+    const { data: matchingPools, error: poolError} = await poolQuery;
+    console.log("Supabase Query Result:", { matchingPools, error: poolError, filters: { popularity, yearRange } });
+    let selectedPoolId = null;
+    if (poolError || !matchingPools || matchingPools.length===0) {
+      const { data: fallbackPools} = await supabase.from('draft_pools').select('id').limit(10);
+      if (fallbackPools && fallbackPools.length > 0) {
+        selectedPoolId = fallbackPools[Math.floor(Math.random() * fallbackPools.length)].id;
+      } else {
+        alert("No draft pools found in database. Run your python generator first!");
+        setIsCreating(false);
+        return;
+      }
+    } else {
+      selectedPoolId = matchingPools[Math.floor(Math.random() * matchingPools.length)].id;
+    }
     
     const { error } = await supabase.from('rooms').insert({
       id: newRoomCode,
       owner_id: playerId,
+      pool_id: selectedPoolId,
       config: { buildTime, solveTime, maxNodes, allowedNodes, yearRange, popularity },
-      // CHANGE HERE: Use playerName instead of 'Room Owner'
       players: [{ id: playerId, name: playerName.trim(), isOwner: true, isReady: true }],
       status: 'lobby'
     });
@@ -90,8 +139,6 @@ const FriendsLobbyForm: React.FC = () => {
       </div>
 
       <div className="p-6 md:p-8">
-        
-        {/* ADDED: Shared Name Input for both tabs */}
         <div className="mb-8 pb-8 border-b border-white/5">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Your Display Name</label>
             <input 
@@ -163,16 +210,31 @@ const FriendsLobbyForm: React.FC = () => {
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Allowed Node Types</label>
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(allowedNodes).map(([key, value]) => (
-                  <label key={key} className="flex items-center gap-3 bg-slate-950 border border-white/5 p-3 rounded-lg cursor-pointer hover:border-white/20 transition-colors">
-                    <input 
-                      type="checkbox" checked={value} 
-                      onChange={() => setAllowedNodes(prev => ({...prev, [key]: !prev[key as keyof typeof allowedNodes]}))}
-                      className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950 bg-slate-800 border-white/10"
-                    />
-                    <span className="text-xs text-white font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                  </label>
-                ))}
+                
+                {/* Anime Toggle */}
+                <label className="flex items-center gap-3 bg-slate-950 border border-white/5 p-3 rounded-lg cursor-pointer hover:border-white/20 transition-colors">
+                    <input type="checkbox" checked={allowedNodes.anime} onChange={() => setAllowedNodes(p => ({...p, anime: !p.anime}))} className="w-4 h-4 rounded text-emerald-500 bg-slate-800 border-white/10" />
+                    <span className="text-xs text-white font-medium">Anime</span>
+                </label>
+
+                {/* Character Toggle */}
+                <label className="flex items-center gap-3 bg-slate-950 border border-white/5 p-3 rounded-lg cursor-pointer hover:border-white/20 transition-colors">
+                    <input type="checkbox" checked={allowedNodes.character} onChange={() => setAllowedNodes(p => ({...p, character: !p.character}))} className="w-4 h-4 rounded text-emerald-500 bg-slate-800 border-white/10" />
+                    <span className="text-xs text-white font-medium">Characters</span>
+                </label>
+
+                {/* VA Toggle (Dependent on Character) */}
+                <label className={`flex items-center gap-3 bg-slate-950 border border-white/5 p-3 rounded-lg transition-colors ${!allowedNodes.character ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'}`}>
+                    <input type="checkbox" disabled={!allowedNodes.character} checked={allowedNodes.voiceActor} onChange={() => setAllowedNodes(p => ({...p, voiceActor: !p.voiceActor}))} className="w-4 h-4 rounded text-emerald-500 bg-slate-800 border-white/10 disabled:opacity-0" />
+                    <span className="text-xs text-white font-medium">Voice Actors</span>
+                </label>
+
+                {/* Studio Toggle (Dependent on Anime) */}
+                <label className={`flex items-center gap-3 bg-slate-950 border border-white/5 p-3 rounded-lg transition-colors ${!allowedNodes.anime ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'}`}>
+                    <input type="checkbox" disabled={!allowedNodes.anime} checked={allowedNodes.studio} onChange={() => setAllowedNodes(p => ({...p, studio: !p.studio}))} className="w-4 h-4 rounded text-emerald-500 bg-slate-800 border-white/10 disabled:opacity-0" />
+                    <span className="text-xs text-white font-medium">Studios</span>
+                </label>
+
               </div>
             </div>
 
@@ -192,9 +254,10 @@ const FriendsLobbyForm: React.FC = () => {
                 <div>
                   <span className="text-[10px] text-slate-500 block mb-1">Popularity</span>
                   <select value={popularity} onChange={(e) => setPopularity(e.target.value)} className="w-full bg-slate-950 border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs">
-                    <option value="popular">Mainstream Only</option>
-                    <option value="all">All Anime</option>
-                    <option value="niche">Obscure/Niche</option>
+                    {/* MODIFIED: Matching database strings */}
+                    <option value="Mainstream">Mainstream Only</option>
+                    <option value="All Anime">All Anime</option>
+                    <option value="Niche">Obscure/Niche</option>
                   </select>
                 </div>
               </div>

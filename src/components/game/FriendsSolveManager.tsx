@@ -8,13 +8,14 @@ interface Props {
 
 const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
   const [levelData, setLevelData] = useState<any>(null);
+  const [intendedPath, setIntendedPath] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   
   const [myTime, setMyTime] = useState<number | null>(null);
   const [opponentTime, setOpponentTime] = useState<number | null>(null);
   const [matchResults, setMatchResults] = useState<any>(null);
 
-  const { playerId, name: playerName } = getLocalPlayerId();
+  const { playerId } = getLocalPlayerId();
 
   // 1. INITIALIZE & LOAD GRAPH
   useEffect(() => {
@@ -37,6 +38,8 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
         parsed.metadata.end_name = endNode?.name || 'Target';
         
         setLevelData(parsed);
+        // Extract intendedPath so the GameClient knows the exact edges required to win
+        setIntendedPath(parsed.intendedPath || []); 
       } catch (err) {
         setError("Failed to parse opponent's graph.");
       }
@@ -94,20 +97,28 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       }
   };
 
+  // Helper to clear stale game data when leaving
+  const handleClearCacheAndLeave = () => {
+      localStorage.removeItem(`driftaku_solve_${roomId}`);
+      window.location.href = '/play/friends';
+  };
+
   // --- RENDER STATES ---
 
   if (error) {
       return (
-          <div className="flex flex-col items-center justify-center h-full text-center p-6">
-              <h2 className="text-2xl font-bold text-rose-500 mb-4">Error Intercepting Graph</h2>
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 bg-slate-950 font-sans">
+              <h2 className="text-2xl font-bold text-rose-500 mb-4 uppercase tracking-widest">Error Intercepting Graph</h2>
               <p className="text-slate-400 mb-8">{error}</p>
-              <a href="/play/friends" className="bg-slate-800 text-white px-6 py-3 rounded-xl hover:bg-slate-700">Back to Lobby</a>
+              <button onClick={handleClearCacheAndLeave} className="bg-slate-800 text-white px-6 py-3 rounded-xl hover:bg-slate-700 font-bold uppercase tracking-widest text-xs transition-colors">
+                  Back to Lobby
+              </button>
           </div>
       );
   }
 
   if (!levelData) {
-      return <div className="flex items-center justify-center h-full text-white font-mono animate-pulse">Initializing Web...</div>;
+      return <div className="flex items-center justify-center h-full bg-slate-950 text-indigo-400 font-bold uppercase tracking-widest text-xs animate-pulse">Initializing Web...</div>;
   }
 
   // --- SHOW MATCH RESULTS IF BOTH FINISHED ---
@@ -120,7 +131,7 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       const isTie = myFinalTime === opponentFinalTime;
 
       return (
-          <div className="flex items-center justify-center h-full bg-slate-950 p-6">
+          <div className="flex items-center justify-center h-full bg-slate-950 p-6 font-sans">
               <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl relative overflow-hidden">
                   
                   {/* Decorative background glow based on win/loss */}
@@ -129,14 +140,14 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
                   <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2 relative z-10">
                       {isTie ? 'Draw!' : isWinner ? 'Victory!' : 'Defeated!'}
                   </h1>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-8 relative z-10">
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-8 relative z-10">
                       {isWinner ? 'You solved the web faster.' : 'Your opponent out-drifted you.'}
                   </p>
 
                   <div className="space-y-4 mb-8 relative z-10">
                       {/* My Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${isWinner ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
-                          <span className="font-bold text-white">You</span>
+                          <span className="font-bold text-white uppercase tracking-widest text-xs">You</span>
                           <span className={`font-mono text-xl ${isWinner ? 'text-emerald-400 font-black' : 'text-slate-300'}`}>
                               {myFinalTime.toFixed(2)}s
                           </span>
@@ -144,16 +155,19 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
 
                       {/* Opponent Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${!isWinner && !isTie ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
-                          <span className="font-bold text-slate-300">Opponent</span>
+                          <span className="font-bold text-slate-300 uppercase tracking-widest text-xs">Opponent</span>
                           <span className={`font-mono text-xl ${!isWinner && !isTie ? 'text-emerald-400 font-black' : 'text-slate-400'}`}>
                               {opponentFinalTime.toFixed(2)}s
                           </span>
                       </div>
                   </div>
 
-                  <a href="/play/friends" className="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all relative z-10 shadow-lg shadow-indigo-500/20">
+                  <button 
+                      onClick={handleClearCacheAndLeave} 
+                      className="block w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all relative z-10 shadow-lg shadow-indigo-500/20 text-sm"
+                  >
                       Return to Lobby
-                  </a>
+                  </button>
               </div>
           </div>
       );
@@ -162,13 +176,13 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
   // --- SHOW WAITING SCREEN IF I WON BUT OPPONENT IS STILL PLAYING ---
   if (myTime) {
       return (
-          <div className="flex items-center justify-center h-full bg-slate-950 p-6">
+          <div className="flex items-center justify-center h-full bg-slate-950 p-6 font-sans">
               <div className="text-center">
                   <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4">Web Solved!</h2>
-                  <p className="text-xl font-mono text-emerald-400 mb-8">{myTime.toFixed(2)}s</p>
+                  <p className="text-3xl font-mono text-emerald-400 mb-8 font-bold">{myTime.toFixed(2)}s</p>
                   
-                  <div className="inline-flex items-center gap-3 bg-slate-900 border border-white/10 px-6 py-3 rounded-full">
-                      <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="inline-flex items-center gap-3 bg-slate-900 border border-white/10 px-6 py-4 rounded-full shadow-xl">
+                      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Waiting for opponent...</span>
                   </div>
               </div>
@@ -180,7 +194,8 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
   return (
       <div className="h-full w-full relative">
           <GameClient 
-              enhancedLevelData={levelData} 
+              levelData={levelData} 
+              intendedPath={intendedPath} 
               onWin={handleWin} 
           />
       </div>

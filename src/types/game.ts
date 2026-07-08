@@ -3,16 +3,16 @@ import type * as PIXI from 'pixi.js';
 
 
 export interface UserLink {
-  sourceId: string;
-  targetId: string;
+  sourceId: number;
+  targetId: number;
 }
 
 export interface GameNode extends d3.SimulationNodeDatum {
-  id: string;
-  type: string;
+  id: number;
+  type: number;
   name: string;
   image?: string;
-  connections: string[];
+  connections: number[];
 }
 
 export interface GameLink extends d3.SimulationLinkDatum<GameNode> {
@@ -22,9 +22,9 @@ export interface GameLink extends d3.SimulationLinkDatum<GameNode> {
 
 export interface LevelMetadata {
   level?: number;
-  start_node: string;
+  start_node: number;
   start_name: string;
-  end_node: string;
+  end_node: number;
   end_name: string;
   total_nodes: number;
 }
@@ -40,11 +40,28 @@ export interface NodeVisuals {
   icon: PIXI.Graphics;
 }
 
-export const NODE_COLORS = {
-  Anime: 0x818cf8,          // Indigo
-  "Anime character": 0xf43f5e, // Rose
-  "Voice Actor": 0xfbbf24,     // Amber
-  Studio: 0x10b981,           // Emerald
+// export const NODE_COLORS = {
+//   Anime: 0x818cf8,          // Indigo
+//   "Anime character": 0xf43f5e, // Rose
+//   "Voice Actor": 0xfbbf24,     // Amber
+//   Studio: 0x10b981,           // Emerald
+//   Start: 0xffffff,
+//   Target: 0x22d3ee            // Cyan
+// };
+// Mapping for UI purposes
+export const TYPE_MAP = {
+  0: "Character",
+  1: "Voice Actor",
+  2: "Anime",
+  3: "Studio"
+};
+export const NODE_COLORS: Record<number, number> = {
+  2: 0x818cf8, // Anime (Indigo)
+  0: 0xf43f5e, // Character (Rose)
+  1: 0xfbbf24, // Voice Actor (Amber)
+  3: 0x10b981, // Studio (Emerald)
+};
+export const SPECIAL_NODE_COLORS = {
   Start: 0xffffff,
-  Target: 0x22d3ee            // Cyan
+  Target: 0x22d3ee
 };

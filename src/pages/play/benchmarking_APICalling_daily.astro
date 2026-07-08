@@ -1,0 +1,115 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx'; // Import Wrapper
+import GameHeader from '../../components/game/GameHeader.astro';
+import levelData from '../../game_levels/daily_seed_1.json';
+import { getBase64Image } from '../../utils/imageLoader';
+
+const startTime = performance.now();
+
+const initialJsonString = JSON.stringify(levelData);
+const initialSizeKB = (new TextEncoder().encode(initialJsonString).length / 1024).toFixed(2);
+
+const processedNodes = await Promise.all(levelData.nodes.map(async (node) => ({
+  ...node,
+  image: node.image ? await getBase64Image(node.image) : null
+})));
+
+const endTime = performance.now();
+
+const processedJsonString = JSON.stringify(processedNodes);
+const processedSizeKB = (new TextEncoder().encode(processedJsonString).length / 1024).toFixed(2);
+
+// 4. Calculations
+const serverLatency = (endTime - startTime).toFixed(2);
+const bloatFactor = (Number(processedSizeKB) / Number(initialSizeKB)).toFixed(1);
+const memoryWastedByBase64 = (Number(processedSizeKB) - Number(initialSizeKB)).toFixed(2);
+
+const levelId = levelData.metadata.level;
+const enhancedLevelData = {
+    ...levelData,
+    nodes: processedNodes
+}
+const shortestPath = ["anime_11111", "char_51587", "va_96489", "char_81853", "anime_20931"];
+---
+
+<Layout title={`Daily Web #${levelId} | Driftaku`}>
+    <div class="fixed bottom-4 right-4 z-[9999] w-80 bg-slate-950/90 border border-indigo-500/50 p-5 rounded-2xl font-mono backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-none">
+        <h3 class="text-indigo-400 font-black text-xs uppercase tracking-tighter mb-4 border-b border-white/10 pb-2 flex justify-between">
+            Performance HUD <span>v1.0</span>
+        </h3>
+        
+        <div class="space-y-4">
+            <!-- Latency Section -->
+            <section>
+                <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Server Latency (Blocking)</p>
+                <div class="flex items-end gap-2">
+                    <span class="text-2xl font-black text-white">{serverLatency}</span>
+                    <span class="text-xs text-slate-400 mb-1">ms</span>
+                </div>
+            </section>
+
+            <!-- Memory Section -->
+            <section>
+                <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">RAM & Payload Size</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-white/5 p-2 rounded-lg text-center">
+                        <p class="text-[9px] text-slate-500 uppercase">JSON Text</p>
+                        <p class="text-sm font-bold text-white">{initialSizeKB}KB</p>
+                    </div>
+                    <div class="bg-white/5 p-2 rounded-lg text-center border border-rose-500/30">
+                        <p class="text-[9px] text-rose-400 uppercase">Base64 Bloat</p>
+                        <p class="text-sm font-bold text-rose-500">{processedSizeKB}KB</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Efficiency Metric -->
+            <div class="pt-2">
+                <div class="flex justify-between text-[10px] font-bold mb-1">
+                    <span class="text-slate-400 uppercase">Inefficiency Multiplier</span>
+                    <span class="text-rose-500">{bloatFactor}x heavier</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-rose-500 shadow-[0_0_10px_#f43f5e]" style={`width: ${Math.min(Number(bloatFactor) * 10, 100)}%`}></div>
+                </div>
+            </div>
+            
+            <p class="text-[9px] text-slate-600 leading-tight italic">
+                * Holding <span class="text-slate-400">{memoryWastedByBase64}KB</span> of string data in the server heap while processing requests.
+            </p>
+        </div>
+    </div>
+
+    <main class="max-w-5xl mx-auto px-4 py-8">
+        
+        <div class="bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
+            <GameHeader 
+                title={`Daily Web #${levelId}`}
+                startName={levelData.metadata.start_name}
+                endName={levelData.metadata.end_name}
+            />
+
+            <!-- Container stays identical for both states -->
+            <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
+                <DailyGameWrapper 
+                    client:only="react" 
+                    levelId={levelId}
+                    shortestPath={shortestPath} 
+                    enhancedLevelData={enhancedLevelData} 
+                />
+            </div>
+        </div>
+
+        <script define:vars={{ levelId }}>
+            // Listen for the custom event fired from the React component
+            window.addEventListener('game-won', (e) => {
+                const finalTime = e.detail.time;
+                // You can add global UI logic here (fireworks, confetti, etc.)
+                console.log(`Global handler caught win: ${finalTime}s`);
+            });
+        </script>
+    </main>
+</Layout>

@@ -1,66 +1,50 @@
 ---
+export const prerender = false;
+
 import Layout from '../../layouts/Layout.astro';
-import GameClient from '../../components/GameClient.tsx';
+import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
 import GameHeader from '../../components/game/GameHeader.astro';
-import levelData from '../../game_levels/daily_seed_1.json';
-import { getBase64Image } from '../../utils/imageLoader';
+import { supabase } from '../../lib/supabase';
 
-const processedNodes = await Promise.all(levelData.nodes.map(async (node) => ({
-  ...node,
-  image: node.image ? await getBase64Image(node.image) : null
-})));
+// 1. Get today's date
+const today = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata',
+}).format(new Date());
+// 2. Fetch directly from Supabase
+const { data: challenge, error } = await supabase
+    .from('daily_challenges')
+    .select('metadata, nodes_data, intended_path')
+    .eq('play_date', today)
+    .single();
 
-const levelId = levelData.metadata.level;
-const enhancedLevelData = {
-    ...levelData,
-    nodes: processedNodes
+if (error || !challenge) {
+    // Redirect if no challenge is set up for today
+    return Astro.redirect('/404');
 }
-const shortestPath = ["anime_11111", "char_51587", "va_96489", "char_81853", "anime_20931"];
 
+// 3. Simple mapping
+const levelData = {
+    metadata: challenge.metadata,
+    nodes: challenge.nodes_data
+};
 ---
 
-<Layout title={`Daily Web #${levelId} | Driftaku`}>
+<Layout title={`Daily Web | Driftaku`}>
     <main class="max-w-5xl mx-auto px-4 py-8">
-        
         <div class="bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
             <GameHeader 
-                title={`Daily Web #${levelId}`}
-                startName={levelData.metadata.start_name}
-                endName={levelData.metadata.end_name}
+                title={challenge.metadata.title}
+                startName={challenge.metadata.start_name}
+                endName={challenge.metadata.end_name}
             />
 
             <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
-                <GameClient 
+                <DailyGameWrapper 
                     client:only="react" 
-                    shortestPath={shortestPath} 
-                    enhancedLevelData={enhancedLevelData} 
-                    onWin={(time) => {
-                        const key = `driftaku_pb_level_${levelId}`;
-                        const previousBest = localStorage.getItem(key);
-                        if(!previousBest || time < parseFloat(previousBest)) {
-                            localStorage.setItem(key, time.toString());
-                            console.log("New personal Best saved:", time);
-                        }
-                    }}
+                    levelData={levelData} 
+                    intendedPath={challenge.intended_path}
                 />
             </div>
-            
-            <!-- Result Overlay logic managed via React in GameClient, 
-                 but we can add a persistent JS script here for LocalStorage -->
         </div>
-
-        <script define:vars={{ levelId }}>
-            // Handle saving stats when game is won
-            window.addEventListener('game-won', (e) => {
-                const finalTime = e.detail.time;
-                const key = `driftaku_pb_level_${levelId}`;
-                const existingPB = localStorage.getItem(key);
-                
-                if (!existingPB || finalTime < parseFloat(existingPB)) {
-                    localStorage.setItem(key, finalTime.toString());
-                    alert(`New Personal Best: ${finalTime.toFixed(2)}s!`);
-                }
-            });
-        </script>
     </main>
 </Layout>
