@@ -6,6 +6,8 @@ import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
 import GameHeader from '../../components/game/GameHeader.astro';
 import { supabase } from '../../lib/supabase';
 
+const t0 = performance.now();
+
 // 1. Get today's date
 const today = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata',
@@ -16,6 +18,9 @@ const { data: challenge, error } = await supabase
     .select('metadata, nodes_data, intended_path')
     .eq('play_date', today)
     .single();
+
+const t1 = performance.now();
+const dbLoadTimeMS = (t1-t0).toFixed(2);
 
 if (error || !challenge) {
     // Redirect if no challenge is set up for today
@@ -43,6 +48,7 @@ const levelData = {
                     client:only="react" 
                     levelData={levelData} 
                     intendedPath={challenge.intended_path}
+                    dbLoadTime = {dbLoadTimeMS}
                 />
             </div>
         </div>

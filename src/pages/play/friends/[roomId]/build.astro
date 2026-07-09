@@ -5,6 +5,9 @@ import Layout from '../../../../layouts/Layout.astro';
 import BuilderClient from '../../../../components/game/BuilderClient.tsx';
 
 const { roomId } = Astro.params;
+if (!roomId) {
+  return Astro.redirect('/play/friends');
+}
 ---
 
 <Layout title={`Building - Room ${roomId}`}>
