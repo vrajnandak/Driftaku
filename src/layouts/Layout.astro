@@ -1,99 +1,128 @@
 ---
 import '../styles/global.css'
 
-interface Props {
-	title?: string;
-	description?: string;
+interface Props { 
+	title?: string; 
+	description?: string; 
 }
 
 const { 
-	title = "Driftaku | The Ultimate Anime Connection Challenge", 
-	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Daily puzzles and anime wallpaper !" 
+	title = "Driftaku | The Ultimate Anime Connection Challenge",
+	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Daily puzzles and anime wallpaper!" 
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 ---
 
 <!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="canonical" href={canonicalURL} />
-		
-		<!-- Primary Meta Tags -->
-		<title>{title}</title>
-		<meta name="title" content={title} />
-		<meta name="description" content={description} />
+<html lang="en" class="scroll-smooth">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+	
+	<!-- Primary Meta Tags -->
+	<title>{title}</title>
+	<meta name="title" content={title} />
+	<meta name="description" content={description} />
 
-		<!-- Open Graph / Facebook -->
-		<meta property="og:type" content="website" />
-		<meta property="og:url" content={canonicalURL} />
-		<meta property="og:title" content={title} />
-		<meta property="og:description" content={description} />
-		<meta property="og:image" content="/og-image.png" />
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={canonicalURL} />
+	<meta property="og:title" content={title} />
+	<meta property="og:description" content={description} />
+	<meta property="og:image" content="/og-image.png" />
 
-		<!-- AdSense Code (Replace 'ca-pub-XXXXXXXXXXXXXXXX' with your actual ID later) -->
-		<!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+	<!-- Favicon -->
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-		<meta name="generator" content={Astro.generator} />
-		<link rel="preconnect" href="https://fonts.googleapis.com">
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700&display=swap" rel="stylesheet">
-	</head>
-	<body class="bg-slate-950 text-white font-['Lexend',sans-serif]">
-		<nav class="border-b border-white/10 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-			<div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-				<a href="/" class="text-2xl font-bold tracking-tighter text-indigo-400">DRIFT<span class="text-white">AKU</span></a>
-				<div class="space-x-6 text-sm font-medium hidden md:flex">
-					<a href="/archive" class="hover:text-indigo-400 transition">Archive</a>
-					<a href="/wallpaper" class="hover:text-indigo-400 transition">Anime Wallpaper</a>
-					<a href="/leaderboard" class="hover:text-indigo-400 transition">Leaderboard</a>
-					<a href="/how-to-play" class="hover:text-indigo-400 transition">How to Play</a>
-				</div>
-				<div class="md:hidden text-xs font-bold">MENU</div>
+	<!-- AdSense Code (Replace 'ca-pub-XXXXXXXXXXXXXXXX' with your actual ID later) -->
+	<!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
+
+	<meta name="generator" content={Astro.generator} />
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-950 text-white font-['Lexend',sans-serif] min-h-screen flex flex-col">
+	
+	<!-- Responsive Navigation -->
+	<nav class="border-b border-white/10 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+		<div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+			<!-- Logo -->
+			<a href="/" class="text-2xl font-black tracking-tighter text-indigo-400 relative z-50">
+				DRIFT<span class="text-white">AKU</span>
+			</a>
+			
+			<!-- Desktop Menu -->
+			<div class="hidden md:flex items-center space-x-8 text-sm font-bold tracking-wide uppercase text-slate-300">
+				<a href="/archive" class="hover:text-indigo-400 transition-colors">Archive</a>
+				<a href="/wallpaper" class="hover:text-indigo-400 transition-colors">Wallpaper</a>
+				<a href="/leaderboard" class="hover:text-indigo-400 transition-colors">Leaderboard</a>
+				<a href="/how-to-play" class="hover:text-indigo-400 transition-colors">How to Play</a>
 			</div>
-		</nav>
+			
+			<!-- Mobile Hamburger Button -->
+			<button id="mobile-menu-btn" class="md:hidden relative z-50 p-2 text-slate-300 hover:text-white transition-colors" aria-label="Toggle Menu">
+				<svg id="menu-icon-open" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+				</svg>
+				<svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+		</div>
 
-		
+		<!-- Mobile Menu Dropdown -->
+		<div id="mobile-menu" class="fixed inset-x-0 top-0 pt-20 pb-6 px-4 bg-slate-900/95 backdrop-blur-xl border-b border-white/10 flex flex-col space-y-4 shadow-2xl transition-all duration-300 ease-in-out -translate-y-full opacity-0 pointer-events-none md:hidden z-40">
+			<a href="/archive" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Archive</a>
+			<a href="/wallpaper" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Anime Wallpaper</a>
+			<a href="/leaderboard" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Leaderboard</a>
+			<a href="/how-to-play" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">How to Play</a>
+		</div>
+	</nav>
 
+	<!-- Main Content Wrapper (Flex-1 pushes footer to bottom) -->
+	<main class="flex-1 w-full flex flex-col relative z-0">
 		<slot />
+	</main>
 
-		<footer class="border-t border-white/10 mt-12 py-8 bg-slate-900">
-			<div class="max-w-6xl mx-auto px-4 text-center text-slate-400 text-sm">
-				<p>© {new Date().getFullYear()} Driftaku.com - Data provided by AniList.</p>
-				<div class="mt-2 space-x-4">
-					<a href="/privacy" class="hover:underline">Privacy Policy</a>
-					<a href="/terms" class="hover:underline">Terms of Service</a>
-				</div>
+	<!-- Responsive Footer -->
+	<footer class="border-t border-white/10 mt-auto py-8 bg-slate-900 z-10">
+		<div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-center md:text-left text-slate-400 text-sm gap-4">
+			<p>© {new Date().getFullYear()} Driftaku.com - Data provided by AniList.</p>
+			<div class="flex space-x-6 font-medium">
+				<a href="/privacy" class="hover:text-indigo-400 transition-colors">Privacy Policy</a>
+				<a href="/terms" class="hover:text-indigo-400 transition-colors">Terms of Service</a>
 			</div>
-		</footer>
-	</body>
-</html>
+		</div>
+	</footer>
 
-<style is:global>
-	:root {
-		--accent: 136, 58, 234;
-	}
-	html, body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-		overflow-x: hidden;
-	}
-	/* Custom scrollbar for that premium feel */
-	::-webkit-scrollbar {
-		width: 8px;
-	}
-	::-webkit-scrollbar-track {
-		background: #020617;
-	}
-	::-webkit-scrollbar-thumb {
-		background: #1e293b;
-		border-radius: 10px;
-	}
-	::-webkit-scrollbar-thumb:hover {
-		background: #334155;
-	}
-</style>
+	<!-- Mobile Menu Toggle Script -->
+	<script>
+		const btn = document.getElementById('mobile-menu-btn');
+		const menu = document.getElementById('mobile-menu');
+		const iconOpen = document.getElementById('menu-icon-open');
+		const iconClose = document.getElementById('menu-icon-close');
+
+		if (btn && menu && iconOpen && iconClose) {
+			btn.addEventListener('click', () => {
+				const isClosed = menu.classList.contains('-translate-y-full');
+				
+				if (isClosed) {
+					// Open Menu
+					menu.classList.remove('-translate-y-full', 'opacity-0', 'pointer-events-none');
+					menu.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+					iconOpen.classList.add('hidden');
+					iconClose.classList.remove('hidden');
+				} else {
+					// Close Menu
+					menu.classList.add('-translate-y-full', 'opacity-0', 'pointer-events-none');
+					menu.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+					iconOpen.classList.remove('hidden');
+					iconClose.classList.add('hidden');
+				}
+			});
+		}
+	</script>
+</body>
+</html>
