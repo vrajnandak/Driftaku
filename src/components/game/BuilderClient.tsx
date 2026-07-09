@@ -4,6 +4,7 @@ import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
 import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type NodeVisuals } from '../../types/game';
+import { toast, ToastContainer } from '../ui/Toast';
 
 interface Props {
   roomId: string;
@@ -149,7 +150,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       const isDeployed = workspace.some(n => n.id === neighbor.id);
       if (!isDeployed) {
           if (workspace.length >= builderData.config.maxNodes) {
-              alert("Maximum graph size reached!");
+            //   alert("Maximum graph size reached!");
+                toast("Maximum graph size reached", "error");
               return;
           }
           const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
@@ -344,7 +346,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             handleCenterView();
         } catch (err) {
             console.error(err);
-            alert("Could not generate a valid graph with the current parameters.");
+            // alert("Could not generate a valid graph with the current parameters.");
+            toast("Could not generate a valid graph with the current parameters.", "error");
         } finally {
             setIsGenerating(false);
         }
@@ -414,7 +417,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
-        alert("Failed to auto-submit graph.");
+        // alert("Failed to auto-submit graph.");
+        toast("Failed to auto-submit graph.", "error");
         setIsSubmitting(false);
         return;
     }
@@ -475,7 +479,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     
     const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     if (!room) {
-        alert("Room error!");
+        // alert("Room error!");
+        toast("Room error!", "warning");
         setIsSubmitting(false);
         return;
     }
@@ -491,7 +496,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
-        alert("Failed to submit graph.");
+        // alert("Failed to submit graph.");
+        toast("Failed to submit graph.", "error");
         setIsSubmitting(false);
         return;
     }
@@ -1255,6 +1261,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         )}
 
       </div>
+
+      <ToastContainer />
     </div>
   );
 };

@@ -5,6 +5,7 @@ import * as d3 from 'd3-force';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
 import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
+import { toast, ToastContainer } from './ui/Toast';
 
 interface Props {
   levelData: LevelData;
@@ -376,7 +377,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         );
 
         if (linkExists) {
-          alert("This connection already exists!");
+          // alert("This connection already exists!");
+          toast("This connection already exists!", "warning");
         } else {
           const newLink = { sourceId: currentSelectedId, targetId };
           const updatedLinks = [...stateRef.current.userLinks, newLink];
@@ -384,7 +386,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
           checkWinCondition(updatedLinks);
         }
       } else {
-        alert(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`);
+        // alert(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`);
+        toast(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`, "warning");
       }
       
       stateRef.current.selectedNodeId = null;
@@ -689,6 +692,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
           </div>
         )}
       </div>
+      <ToastContainer />
     </div>
   );
 };

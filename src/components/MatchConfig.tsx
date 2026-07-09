@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { LevelData } from '../types/game';
+import { toast, ToastContainer } from './ui/Toast';
 
 const PATH_LENGTHS: Record<string, number> = {
   'Easy': 2,
@@ -44,7 +45,8 @@ export default function MatchConfig({onGraphGenerated, setLoading}: Props) {
       onGraphGenerated(levelData);
     } catch (error) {
       console.error("Failed to generate graph:", error);
-      alert("Failed to generate a puzzle. Try different settings!");
+      // alert("Failed to generate a puzzle. Try different settings!");
+      toast("Failed to generate a puzzle. Try different settings!", "info");
     } finally {
       setLoading(false);
     }
@@ -108,6 +110,7 @@ export default function MatchConfig({onGraphGenerated, setLoading}: Props) {
       >
         START MATCH
       </button>
+      <ToastContainer />
     </div>
   );
 }

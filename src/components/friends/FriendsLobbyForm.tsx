@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, getLocalPlayerId, setLocalPlayerName } from '../../lib/supabase';
+import { toast, ToastContainer } from '../ui/Toast';
 
 const FriendsLobbyForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'join' | 'create'>('join');
@@ -46,7 +47,8 @@ const FriendsLobbyForm: React.FC = () => {
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) {
-        alert("Please enter a display name first.");
+        // alert("Please enter a display name first.");
+        toast("Please enter a display name first.", "warning");
         return;
     }
     if (roomCode.trim().length > 0) {
@@ -57,13 +59,15 @@ const FriendsLobbyForm: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) {
-        alert("Please enter a display name first.");
+        // alert("Please enter a display name first.");
+        toast("Please enter a display name first.", "warning");
         return;
     }
     
     // Basic validation
     if (yearRange.min > yearRange.max) {
-        alert("Release Era: Start year cannot be greater than end year.");
+        // alert("Release Era: Start year cannot be greater than end year.");
+        toast("Release Era: Start year cannot be greater than end year.", "warning");
         return;
     }
 
@@ -88,7 +92,8 @@ const FriendsLobbyForm: React.FC = () => {
       if (fallbackPools && fallbackPools.length > 0) {
         selectedPoolId = fallbackPools[Math.floor(Math.random() * fallbackPools.length)].id;
       } else {
-        alert("No draft pools found in database. Run your python generator first!");
+        // alert("No draft pools found in database. Run your python generator first!");
+        toast("No draft pools found in database. Run your python generator first!", "warning");
         setIsCreating(false);
         return;
       }
@@ -106,7 +111,8 @@ const FriendsLobbyForm: React.FC = () => {
     });
 
     if (error) {
-      alert("Error creating room. Check console.");
+      // alert("Error creating room. Check console.");
+      toast("Error creating room. Check console.", "error");
       console.error(error);
       setIsCreating(false);
       return;
@@ -302,6 +308,7 @@ const FriendsLobbyForm: React.FC = () => {
           </form>
         )}
       </div>
+      <ToastContainer />
     </div>
   );
 };

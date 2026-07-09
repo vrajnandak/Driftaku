@@ -260,6 +260,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase, getLocalPlayerId, clearStalePools } from '../../lib/supabase';
+import { toast, ToastContainer } from '../ui/Toast';
 
 interface Props {
   roomId: string;
@@ -290,7 +291,8 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
       let { data, error } = await supabase.from('rooms').select('*').eq('id', roomId).single();
       
       if (error || !data) {
-        alert("Room not found or expired!");
+        // alert("Room not found or expired!");
+        toast("Room not found or expired!", "warning");
         window.location.href = '/play/friends';
         return;
       }
@@ -302,7 +304,8 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
       
       if (!playerExists) {
         if (data.players.length >= 2) {
-          alert("Room is full! Cannot join.");
+          // alert("Room is full! Cannot join.");
+          toast("Room is full! Cannot join.", 'info');
           window.location.href = '/play/friends';
           return;
         }
@@ -315,7 +318,8 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
         const {error: updateError} = await supabase.from('rooms').update({ players: updatedPlayers }).eq('id', roomId);
         if (updateError) {
           console.error("Failed to join room:", updateError);
-          alert("Failed to join room. Please try again.");
+          // alert("Failed to join room. Please try again.");
+          toast("Failed to join room. Please try again.", "error");
           window.location.href = '/play/friends';
           return;
         }
@@ -568,6 +572,7 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
           </div>
         </div>
       </div>
+      <ToastContainer />
     </div>
   );
 };
