@@ -579,6 +579,15 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       containerRef.current?.appendChild(app.canvas);
       appRef.current = app;
 
+      const imageUrls = builderData.nodes.map((n : GameNode) => n.image).filter(Boolean) as string[];
+      if (imageUrls.length >0) {
+        try {
+            await PIXI.Assets.load(imageUrls);
+        } catch (e) {
+            console.warn("Some PIXI assets failed to load, falling back to placeholders.", e);
+        }
+      }
+
       const viewport = new Viewport({
         screenWidth: app.screen.width, screenHeight: app.screen.height,
         worldWidth: 2000, worldHeight: 2000, events: app.renderer.events
@@ -764,12 +773,15 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     });
 
     if (node.image) {
-      PIXI.Assets.load(node.image).then(tex => {
-        const s = new PIXI.Sprite(tex);
-        s.anchor.set(0.5); s.width = s.height = 60;
-        const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
-        s.mask = m; container.addChild(m, s); icon.visible = false;
-      }).catch(e => console.error(e));
+    //   PIXI.Assets.load(node.image).then(tex => {
+        const tex = PIXI.Assets.get(node.image);
+        if (tex) {
+            const s = new PIXI.Sprite(tex);
+            s.anchor.set(0.5); s.width = s.height = 60;
+            const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
+            s.mask = m; container.addChild(m, s); icon.visible = false;
+        }
+    //   }).catch(e => console.error(e));
     }
     return { container, bg, icon };
   };
