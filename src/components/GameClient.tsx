@@ -9,7 +9,7 @@ import { toast, ToastContainer } from './ui/Toast';
 
 interface Props {
   levelData: LevelData;
-  intendedPath?: string[]; // Edge IDs like "123::456"
+  intendedPath?: string[];
   onWin: (time: number) => void;
 }
 
@@ -30,7 +30,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
   const timerRef = useRef<number | null>(null);
 
-  // React State (Using numbers for IDs)
+  // React State
   const [workspaceNodes, setWorkspaceNodes] = useState<GameNode[]>([]);
   const [warehouseNodes, setWarehouseNodes] = useState<GameNode[]>([]);
   const [userLinks, setUserLinks] = useState<UserLink[]>([]);
@@ -52,6 +52,13 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     selectedNodeId: null as number | null,
     startTime: Date.now()
   });
+
+  // Responsive default: close sidebar on mobile initial load to show the game area
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
 
   // --- FULLSCREEN HANDLER ---
   useEffect(() => {
@@ -99,7 +106,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     if(!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
     const targetScale = 1.3;
     targetZoomRef.current = targetScale;
-    // Fixed: Passing raw object coordinates ensures smooth transition without constructor bugs
     vp.animate({ 
         position: { x: node.x, y: node.y }, 
         scale: targetScale, 
@@ -128,11 +134,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
 
       const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
       if (imageUrls.length > 0) {
-        try {
-          await PIXI.Assets.load(imageUrls);
-        } catch (e) {
-          console.warn("Some pixi assets failed to load, falling back to placeholders.", e);
-        }
+        try { await PIXI.Assets.load(imageUrls); } 
+        catch (e) { console.warn("Some pixi assets failed to load.", e); }
       }
 
       const viewport = new Viewport({
@@ -149,7 +152,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
       viewport.on('pinch-start', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      // FIXED: ResizeObserver guarantees the Viewport math updates when entering Fullscreen
       resizeObserver = new ResizeObserver(() => {
           if (appRef.current && viewportRef.current && containerRef.current) {
               appRef.current.resize();
@@ -196,7 +198,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
             let strokeWidth = 2;
 
             if (isCurrent) {
-                strokeColor = 0xf59e0b; // Amber for active selection tool
+                strokeColor = 0xf59e0b;
                 strokeWidth = 6;
             } else if (isStart) {
                 strokeColor = SPECIAL_NODE_COLORS.Start;
@@ -233,7 +235,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
 
     stateRef.current.workspaceNodes = workspaceNodes;
     
-    // Physics Links logic for D3 to cluster connected nodes naturally
     const d3Links = userLinks.map(l => ({ source: l.sourceId, target: l.targetId }));
     simulationRef.current.nodes(workspaceNodes);
     simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
@@ -280,9 +281,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
       setTimerDisplay(`${minutes}:${seconds}`);
     }, 100);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isWon]);
 
   // --- NODE SPRITE & CORRECT NATIVE DOM DRAG LOGIC ---
@@ -301,15 +300,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
       } else {
         if (activeInfo !== null) return;
         
-        // FIXED: Capture starting canvas-local coordinates
         const startX = e.nativeEvent.clientX; 
         const startY = e.nativeEvent.clientY;
         let hasDragged = false;
 
-        // FIXED: Using Native PointerEvent securely translated to Canvas Bounds
         const onMove = (event: PointerEvent) => {
           if(!viewportRef.current || !appRef.current) return;
-          
           const rect = appRef.current.canvas.getBoundingClientRect();
           const localX = event.clientX - rect.left;
           const localY = event.clientY - rect.top;
@@ -328,9 +324,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointermove', onMove);
 
-          if (!hasDragged) {
-             showNodeInfo(node, container);
-          }
+          if (!hasDragged) showNodeInfo(node, container);
         };
 
         window.addEventListener('pointermove', onMove);
@@ -345,8 +339,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         s.anchor.set(0.5); s.width = s.height = 60;
         const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
         s.mask = m; container.addChild(m, s); icon.visible = false;
-        // PIXI.Assets.load(node.image).then(tex => {
-          // }).catch(e => console.error(e));
       }
     }
     return { container, bg, icon };
@@ -377,7 +369,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         );
 
         if (linkExists) {
-          // alert("This connection already exists!");
           toast("This connection already exists!", "warning");
         } else {
           const newLink = { sourceId: currentSelectedId, targetId };
@@ -386,7 +377,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
           checkWinCondition(updatedLinks);
         }
       } else {
-        // alert(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`);
         toast(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`, "warning");
       }
       
@@ -397,17 +387,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
 
   const deployNode = (node: GameNode) => {
     setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100 - 50) }]);
-    // setWarehouseNodes(prev => prev.filter(n => n.id !== node.id));
   };
 
   const retractNode = (nodeId: number) => {
     if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
     setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
-    // const node = workspaceNodes.find(n => n.id === nodeId)!;
-    // setWarehouseNodes(prev => [...prev, node]);
-    // setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
-    // setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
   };
 
   const checkWinCondition = (links: UserLink[]) => {
@@ -466,14 +451,46 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
 
   const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
 
+  // Helper method for rendering the core tools efficiently in Desktop/Mobile variants
+  const renderToolbar = () => (
+    <>
+        <button 
+            onClick={() => {setTool('select'); stateRef.current.tool='select';}}
+            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+        >
+            Move
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+        <button 
+            onClick={() => {setTool('link'); stateRef.current.tool='link';}}
+            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+        >
+            Link {selectedNodeId && "(!)"}
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+        <button 
+            onClick={() => setIsLegendOpen(true)}
+            className="px-4 py-2.5 md:px-5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all flex-none"
+        >
+            ⓘ
+        </button>
+    </>
+  );
+
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       
+      {/* MOBILE OVERLAY BACKDROP */}
+      <div 
+          className={`md:hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          onClick={() => setIsSidebarOpen(false)}
+      />
+
       {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col w-[85vw] max-w-[320px] md:w-72 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           {isSidebarOpen && (
               <>
-                  <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
+                  <div className="p-4 md:p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
                       <div>
                           <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes {levelData.nodes.length}</p>
@@ -487,7 +504,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                       <input 
                         type="text"
                         placeholder="Search anime, actors..."
-                        className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
@@ -519,7 +536,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                                     className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border cursor-pointer active:scale-95
                                       ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400'}`}
                                 >
-                                    <div className="flex items-center gap-3 min-w-0">
+                                    <div className="flex items-center gap-3 min-w-0 pr-2">
                                         <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
                                             {node.image && <img src={node.image} className="w-full h-full object-cover" />}
                                         </div>
@@ -531,9 +548,13 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                                         </div>
                                     </div>
                                     {deployed && (
-                                        <div className="flex items-center gap-2 shrink-0">
+                                        <div className="flex items-center gap-1.5 shrink-0">
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); }}
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    handleLocateNode(node.id); 
+                                                    if (window.innerWidth < 768) setIsSidebarOpen(false); 
+                                                }}
                                                 className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
                                             >
                                                 Locate
@@ -547,21 +568,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                                         </div>
                                     )}
                                 </div>
-                                // <div 
-                                //     key={node.id} 
-                                //     onClick={ () => { if (!deployed) deployNode(node);} }
-                                //     className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
-                                // >
-                                //     <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                                //         {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                                //     </div>
-                                //     <div className="flex-1 min-w-0">
-                                //         <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                                //         <p className="text-[8px] font-black uppercase tracking-widest" style={{color: colorStr}}>
-                                //             {typeStr}
-                                //         </p>
-                                //     </div>
-                                // </div>
                             )});
                         })()}
                     </div>
@@ -570,93 +576,85 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
           )}
       </div>
 
-      {/* SHOW BUTTON (Visible when sidebar is closed) */}
-      {!isSidebarOpen && (
-          <button 
-              onClick={toggleSidebar}
-              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
-          >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-          </button>
-      )}
-
-      {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
+      {/* FIXED CANVAS WRAPPER */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
 
-        {/* TOOLBAR */}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
+        {/* TOGGLE SIDEBAR BUTTON */}
+        {!isSidebarOpen && (
             <button 
-                onClick={() => {setTool('select'); stateRef.current.tool='select';}}
-                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+                onClick={toggleSidebar}
+                className="absolute top-4 left-4 md:top-6 md:left-6 z-30 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all pointer-events-auto active:scale-95"
             >
-                Move
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
             </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            <button 
-                onClick={() => {setTool('link'); stateRef.current.tool='link';}}
-                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-                Link {selectedNodeId && "(!)"}
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            <button 
-                onClick={() => setIsLegendOpen(true)}
-                className="px-4 py-2.5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white transition-all"
-            >
-                ⓘ
-            </button>
+        )}
+
+        {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
+        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
+            {renderToolbar()}
         </div>
 
-        {/* CONTROLS */}
-        <div className="absolute top-6 right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
+        {/* TOP RIGHT CONTROLS */}
+        <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
           
-          <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
+          <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Elapsed</p>
-            <p className="text-xl font-mono text-white font-bold">{timerDisplay}</p>
+            <p className="text-lg md:text-xl font-mono text-white font-bold leading-none mt-0.5">{timerDisplay}</p>
           </div>
 
-          <div className="flex gap-2 pointer-events-auto">
-            <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex flex-col md:flex-row gap-2 pointer-events-auto">
+            <button onClick={handleCenterView} title="Center View" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
             </button>
-            <button onClick={() => handleZoom('out')} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
+            <button onClick={() => handleZoom('out')} title="Zoom Out" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
             </button>
-            <button onClick={() => handleZoom('in')} title="Zoom In" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+            <button onClick={() => handleZoom('in')} title="Zoom In" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
             </button>
-            <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg`}>
+            <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 md:w-11 md:h-11 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95`}>
                 {isFullscreen ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
           </div>
         </div>
 
-        {/* BOTTOM UI (Retraction Bar) */}
-        <div className="absolute bottom-6 left-6 right-6 z-30 pointer-events-none">
-            <div className="flex gap-2 overflow-x-auto pb-1 pr-2 pointer-events-auto max-w-full no-scrollbar">
+        {/* BOTTOM UI STACK */}
+        <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none">
+            
+            {/* Retraction Bar */}
+            <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {workspaceNodes.map(node => (
-                    <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg">
-                        <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
+                    <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg">
+                        <div 
+                          className="w-2 h-2 rounded-full flex-shrink-0" 
+                          style={{backgroundColor: `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`}} 
+                        />
+                        <span className="text-[11px] md:text-[12px] text-white font-bold whitespace-nowrap">{node.name}</span>
                         {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
                             <button 
                                 onClick={(e) => {e.stopPropagation(); retractNode(node.id);}}
-                                className="w-5 h-5 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs"
+                                className="w-5 h-5 md:w-6 md:h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs md:text-sm md:ml-1"
                             >
                                 ×
                             </button>
                         )}
                     </div>
                 ))}
+            </div>
+
+            {/* MOBILE TOOLBAR (Hidden on Desktop) */}
+            <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto">
+                {renderToolbar()}
             </div>
         </div>
 
@@ -682,7 +680,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         {/* FLOATING INFO LABEL */}
         {activeInfo && (
           <div 
-            className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200"
+            className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200 min-w-max"
             style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}
           >
             <p className="text-white font-bold text-xs">{activeInfo.name}</p>

@@ -67,6 +67,13 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [isGenerating, setIsGenerating] = useState(false); 
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
+  // Responsive default: close sidebar on mobile initial load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
+
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   useEffect(() => {
@@ -150,8 +157,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       const isDeployed = workspace.some(n => n.id === neighbor.id);
       if (!isDeployed) {
           if (workspace.length >= builderData.config.maxNodes) {
-            //   alert("Maximum graph size reached!");
-                toast("Maximum graph size reached", "error");
+              toast("Maximum graph size reached", "error");
               return;
           }
           const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
@@ -346,7 +352,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             handleCenterView();
         } catch (err) {
             console.error(err);
-            // alert("Could not generate a valid graph with the current parameters.");
             toast("Could not generate a valid graph with the current parameters.", "error");
         } finally {
             setIsGenerating(false);
@@ -417,7 +422,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
-        // alert("Failed to auto-submit graph.");
         toast("Failed to auto-submit graph.", "error");
         setIsSubmitting(false);
         return;
@@ -479,7 +483,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     
     const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     if (!room) {
-        // alert("Room error!");
         toast("Room error!", "warning");
         setIsSubmitting(false);
         return;
@@ -496,7 +499,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
-        // alert("Failed to submit graph.");
         toast("Failed to submit graph.", "error");
         setIsSubmitting(false);
         return;
@@ -568,7 +570,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       
       const targetScale = 1.3;
       targetZoomRef.current = targetScale;
-      // Fixed: Passing raw object coordinates ensures smooth transition without constructor bugs
       vp.animate({ 
           position: { x: node.x, y: node.y }, 
           scale: targetScale, 
@@ -593,7 +594,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         try {
             await PIXI.Assets.load(imageUrls);
         } catch (e) {
-            console.warn("Some PIXI assets failed to load, falling back to placeholders.", e);
+            console.warn("Some PIXI assets failed to load.", e);
         }
       }
 
@@ -604,7 +605,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       app.stage.addChild(viewport);
       viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
       
-      // FIXED: Only clear target on manual user interaction so buttons animate smoothly
       viewport.on('wheel', () => { targetZoomRef.current = null; });
       viewport.on('drag-start', () => { targetZoomRef.current = null; });
       viewport.on('pinch-start', () => { targetZoomRef.current = null; });
@@ -817,17 +817,82 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     });
   }, [builderData, searchQuery]);
 
+  // Helper method for rendering the core tools efficiently in Desktop/Mobile variants
+  const renderToolbar = () => (
+    <>
+        <button 
+            onClick={() => { setTool('move'); setEdgeSourceId(null); }}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all ${tool === 'move' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+        >
+            Move
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-0.5 md:mx-1 self-center flex-shrink-0" />
+        <button 
+            onClick={() => { setTool('toggle_edge'); setEdgeSourceId(null); }}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all ${tool === 'toggle_edge' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
+        >
+            Link {edgeSourceId !== null && "(!)"}
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-0.5 md:mx-1 self-center flex-shrink-0" />
+        <button 
+            onClick={() => { setTool('set_start'); setEdgeSourceId(null); }}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_start' ? 'bg-white text-slate-900 shadow-lg shadow-white/20' : 'text-slate-400 hover:text-white'}`}
+        >
+            Start
+        </button>
+        <button 
+            onClick={() => { setTool('set_target'); setEdgeSourceId(null); }}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_target' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
+        >
+            Target
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-0.5 md:mx-1 self-center flex-shrink-0" />
+        
+        <button 
+            onClick={() => setIsAutoBuildModalOpen(true)}
+            disabled={isSubmitting || isGenerating}
+            className="flex-shrink-0 px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20 disabled:opacity-50"
+        >
+            Auto Build
+        </button>
+
+        <div className="w-px h-6 bg-white/10 mx-0.5 md:mx-1 self-center flex-shrink-0" />
+        <button 
+            onClick={() => setShowLegend(true)}
+            className="flex-shrink-0 px-3 md:px-4 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
+        >
+            ⓘ
+        </button>
+        <div className="w-px h-6 bg-white/10 mx-0.5 md:mx-1 self-center flex-shrink-0" />
+        
+        <button 
+            onClick={handleSubmit}
+            disabled={!isSolvable || isSubmitting || isGenerating}
+            className={`flex-shrink-0 px-5 md:px-6 py-2.5 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all 
+              ${isSolvable ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+        >
+            {isSubmitting ? 'Wait...' : 'Submit'}
+        </button>
+    </>
+  );
+
   if (dataError) return <div className="text-white text-center py-20 font-mono tracking-widest text-sm bg-slate-950 h-screen w-full flex items-center justify-center">Database handshake failed. Return to lobby.</div>;
   if (!builderData) return <div className="text-indigo-400 text-center py-20 animate-pulse uppercase tracking-widest font-bold text-xs bg-slate-950 h-screen w-full flex items-center justify-center">Unpacking drafting map...</div>;
 
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full font-sans bg-slate-950 overflow-hidden">
       
+      {/* MOBILE OVERLAY BACKDROP */}
+      <div 
+          className={`md:hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          onClick={() => setIsSidebarOpen(false)}
+      />
+
       {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-80 translate-x-0' : '-translate-x-full w-80'}`}>
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col w-[85vw] max-w-[320px] md:w-80 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {isSidebarOpen && (
           <>
-            <div className="p-5 border-b border-white/10 bg-slate-900/50">
+            <div className="p-4 md:p-5 border-b border-white/10 bg-slate-900/50">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
                 <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
@@ -839,7 +904,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                 <input 
                   type="text" placeholder="Search anime, actors..." 
                   value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
                 />
                 <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -848,7 +913,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
               <div className="flex justify-between items-end">
                 <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
-                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.nodes.length}</span>
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.config.maxNodes}</span>
               </div>
             </div>
             
@@ -866,7 +931,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                       ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
                     onClick={() => { if (!deployed) deployNode(node); }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
                         {node.image && <img src={node.image} className="w-full h-full object-cover" />}
                       </div>
@@ -879,9 +944,13 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                     </div>
 
                     {deployed && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button 
-                          onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); }}
+                          onClick={(e) => { 
+                              e.stopPropagation(); 
+                              handleLocateNode(node.id); 
+                              if (window.innerWidth < 768) setIsSidebarOpen(false); 
+                          }}
                           className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
                         >
                           Locate
@@ -902,106 +971,57 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         )}
       </div>
 
-      {/* SHOW BUTTON (Visible when sidebar is closed) */}
-      {!isSidebarOpen && (
-          <button 
-              onClick={toggleSidebar}
-              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
-          >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-          </button>
-      )}
-
       {/* CANVAS AREA */}
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
         
-        {/* TOOLBAR */}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
-            <button 
-                onClick={() => { setTool('move'); setEdgeSourceId(null); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'move' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-                Move
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            <button 
-                onClick={() => { setTool('toggle_edge'); setEdgeSourceId(null); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'toggle_edge' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-                Toggle Edge {edgeSourceId !== null && "(Select 2nd)"}
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            <button 
-                onClick={() => { setTool('set_start'); setEdgeSourceId(null); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_start' ? 'bg-white text-slate-900 shadow-lg shadow-white/20' : 'text-slate-400 hover:text-white'}`}
-            >
-                Start
-            </button>
-            <button 
-                onClick={() => { setTool('set_target'); setEdgeSourceId(null); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'set_target' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'}`}
-            >
-                Target
-            </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            
-            <button 
-                onClick={() => setIsAutoBuildModalOpen(true)}
-                disabled={isSubmitting || isGenerating}
-                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-fuchsia-600 hover:bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/20 disabled:opacity-50"
-            >
-                Auto Build
-            </button>
+        {/* PIXI CANVAS PINNED */}
+        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
 
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+        {/* SHOW MENU BUTTON (Visible when sidebar is closed) */}
+        {!isSidebarOpen && (
             <button 
-                onClick={() => setShowLegend(true)}
-                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
+                onClick={toggleSidebar}
+                className="absolute top-4 left-4 md:top-6 md:left-6 z-30 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all pointer-events-auto active:scale-95"
             >
-                Info
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
             </button>
-            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-            
-            <button 
-                onClick={handleSubmit}
-                disabled={!isSolvable || isSubmitting || isGenerating}
-                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all 
-                  ${isSolvable ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
-            >
-                {isSubmitting ? 'Sending...' : 'Submit'}
-            </button>
+        )}
+
+        {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
+        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
+            {renderToolbar()}
         </div>
 
         {/* INSTRUCTIONS & ZOOM CONTROLS */}
-        <div className="absolute top-6 right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
+        <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
             
             {builderData.config.buildTime > 0 && (
-              <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-4 py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
+              <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Remaining</p>
-                <p className={`text-xl font-mono font-bold ${timeLeft <= 30 ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
+                <p className={`text-lg md:text-xl font-mono font-bold leading-none mt-0.5 ${timeLeft <= 30 ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
                     {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
                 </p>
               </div>
             )}
             
-            <div className="flex gap-2 pointer-events-auto">
-                <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex flex-col md:flex-row gap-2 pointer-events-auto">
+                <button onClick={handleCenterView} title="Center View" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                 </button>
-                <button onClick={handleZoomOut} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
+                <button onClick={handleZoomOut} title="Zoom Out" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" transform="rotate(45 12 12) scale(0.8) translate(3 -3)" /><line x1="9" y1="12" x2="15" y2="12" strokeWidth="2" /></svg>
                 </button>
-                <button onClick={handleZoomIn} title="Zoom In" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                <button onClick={handleZoomIn} title="Zoom In" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                 </button>
-                <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all backdrop-blur-md shadow-lg`}>
+                <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 md:w-11 md:h-11 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all backdrop-blur-md shadow-lg active:scale-95`}>
                     {isFullscreen ? (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
+                        <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                     ) : (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                        <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                     )}
                 </button>
             </div>
@@ -1009,21 +1029,53 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
         {/* SUBMISSION INDICATOR (Not Solvable) */}
         {!isSolvable && !isWaitingForOpponent && !isPreparingSolve && !isGenerating && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+          <div className="absolute top-20 md:bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none md:top-auto">
              <div className="bg-slate-900/90 text-slate-400 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-lg">
                 Status: <span className="text-rose-400 ml-1">Path Disconnected</span>
              </div>
           </div>
         )}
 
+        {/* BOTTOM UI STACK */}
+        <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none">
+            
+            {/* RETRACTION LIST */}
+            {workspace.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {workspace.map(node => (
+                      <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
+                          <div className="flex flex-col pointer-events-none">
+                            <span className="text-[11px] md:text-[12px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
+                                {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
+                            </span>
+                          </div>
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                              title="Remove from Web"
+                              className="w-5 h-5 md:w-6 md:h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs md:text-sm font-bold ml-1"
+                          >
+                              ×
+                          </button>
+                      </div>
+                  ))}
+              </div>
+            )}
+
+            {/* MOBILE TOOLBAR (Hidden on Desktop) */}
+            <div className="md:hidden flex gap-1 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto overflow-x-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {renderToolbar()}
+            </div>
+        </div>
+
         {/* LOADING OVERLAYS */}
         { (isWaitingForOpponent || isPreparingSolve || isGenerating || isSubmitting) && (
             <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mb-6 ${isGenerating ? 'border-fuchsia-500' : 'border-indigo-500'}`}></div>
-                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
+                <div className={`w-12 h-12 md:w-16 md:h-16 border-4 border-t-transparent rounded-full animate-spin mb-4 md:mb-6 ${isGenerating ? 'border-fuchsia-500' : 'border-indigo-500'}`}></div>
+                <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-tighter mb-2 text-center">
                     {isGenerating ? 'Generating Web...' : isPreparingSolve ? 'Intercepting Web...' : isSubmitting ? 'Submitting...' : 'Web Submitted!'}
                 </h2>
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-sm text-center max-w-sm">
                     {isGenerating ? 'Finding optimal paths and red herrings' : isPreparingSolve ? "Downloading opponent's graph data" : isSubmitting ? 'Finalizing your creation' : "Waiting for opponent to finish..."}
                 </p>
             </div>
@@ -1032,12 +1084,12 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         {/* AUTO-BUILD MODAL */}
         {isAutoBuildModalOpen && (
             <div className="absolute inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-                <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative">
+                <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <button onClick={() => setIsAutoBuildModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                     
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-6">Auto-Build Setup</h2>
+                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter mb-6">Auto-Build Setup</h2>
 
                     <div className="space-y-6">
                         <div>
@@ -1085,7 +1137,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
                     <button 
                         onClick={handleExecuteAutoBuild}
-                        className="w-full mt-8 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors shadow-lg shadow-fuchsia-500/20"
+                        className="w-full mt-8 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase tracking-widest py-3.5 md:py-4 rounded-xl transition-colors shadow-lg shadow-fuchsia-500/20 active:scale-95"
                     >
                         Generate Web
                     </button>
@@ -1093,51 +1145,25 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             </div>
         )}
 
-        {/* PIXI CANVAS */}
-        <div ref={containerRef} className="w-full h-full pointer-events-auto" />
-
-        {/* RETRACTION LIST */}
-        {workspace.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto">
-              {workspace.map(node => (
-                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
-                      <div className="flex flex-col pointer-events-none">
-                        <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
-                            {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
-                        </span>
-                      </div>
-                      <button 
-                          onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                          title="Remove from Web"
-                          className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold ml-1"
-                      >
-                          ×
-                      </button>
-                  </div>
-              ))}
-          </div>
-        )}
-
         {/* INFO MODAL */}
         {infoModalNode && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-              <div className={`bg-slate-900 border border-white/10 rounded-3xl p-6 ${isModalExpanded ? 'max-w-md' : 'max-w-sm'} w-full shadow-2xl relative transition-all duration-300 flex flex-col max-h-[90vh]`}>
-                  <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
+              <div className={`bg-slate-900 border border-white/10 rounded-3xl p-5 md:p-6 ${isModalExpanded ? 'max-w-md' : 'max-w-sm'} w-full shadow-2xl relative transition-all duration-300 flex flex-col max-h-[90vh]`}>
+                  <button onClick={() => setInfoModalNode(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0 z-10">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                   
                   {!isModalExpanded ? (
-                      <>
-                          <div className="w-28 h-28 mx-auto rounded-2xl overflow-hidden bg-black mb-5 border-2 shadow-lg shrink-0" style={{borderColor: `#${(NODE_COLORS[infoModalNode.type] || 0xffffff).toString(16)}`}}>
+                      <div className="overflow-y-auto custom-scrollbar pr-1 pb-1">
+                          <div className="w-24 h-24 md:w-28 md:h-28 mx-auto rounded-2xl overflow-hidden bg-black mb-4 md:mb-5 border-2 shadow-lg shrink-0 mt-4 md:mt-0" style={{borderColor: `#${(NODE_COLORS[infoModalNode.type] || 0xffffff).toString(16)}`}}>
                               {infoModalNode.image && <img src={infoModalNode.image} className="w-full h-full object-cover" />}
                           </div>
-                          <h3 className="text-2xl font-bold text-white text-center mb-1 leading-tight">{infoModalNode.name}</h3>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-center mb-6 shrink-0" style={{color: `#${(NODE_COLORS[infoModalNode.type] || 0xffffff).toString(16)}`}}>
+                          <h3 className="text-xl md:text-2xl font-bold text-white text-center mb-1 leading-tight">{infoModalNode.name}</h3>
+                          <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-center mb-5 shrink-0" style={{color: `#${(NODE_COLORS[infoModalNode.type] || 0xffffff).toString(16)}`}}>
                               {TYPE_MAP[infoModalNode.type as keyof typeof TYPE_MAP] || "Unknown"}
                           </p>
                           
-                          <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-white/5 shrink-0">
+                          <div className="space-y-3 bg-slate-950 p-3 md:p-4 rounded-xl border border-white/5 shrink-0">
                             <div className="flex justify-between items-center border-b border-white/5 pb-2">
                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Workspace Links</span>
                                 <span className="text-xs text-indigo-400 font-bold">{availableEdges.filter(e => e.id.includes(infoModalNode.id.toString())).length}</span>
@@ -1150,34 +1176,34 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
                           <button 
                               onClick={() => setIsModalExpanded(true)}
-                              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-colors text-sm shrink-0"
+                              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-colors text-sm shrink-0 active:scale-95"
                           >
                               Suggest Connections
                           </button>
                           
-                          <div className="flex gap-3 mt-3 shrink-0">
+                          <div className="flex gap-2 md:gap-3 mt-3 shrink-0">
                             <button 
                                 onClick={() => { retractNode(infoModalNode.id); setInfoModalNode(null); }}
-                                className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 font-bold py-3 rounded-xl transition-colors text-sm"
+                                className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 font-bold py-3 rounded-xl transition-colors text-sm active:scale-95"
                             >
                                 Retract
                             </button>
                             <button 
                                 onClick={() => setInfoModalNode(null)}
-                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-sm active:scale-95"
                             >
                                 Close
                             </button>
                           </div>
-                      </>
+                      </div>
                   ) : (
-                      <>
-                          <div className="flex items-center gap-3 mb-4 shrink-0">
-                              <button onClick={() => setIsModalExpanded(false)} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold">
+                      <div className="flex flex-col h-full overflow-hidden">
+                          <div className="flex items-center gap-2 mb-4 shrink-0">
+                              <button onClick={() => setIsModalExpanded(false)} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm font-bold p-1 rounded-lg hover:bg-slate-800 transition-colors">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                                   Back
                               </button>
-                              <h3 className="text-lg font-bold text-white ml-2">Add Connections</h3>
+                              <h3 className="text-base md:text-lg font-bold text-white ml-1">Add Connections</h3>
                           </div>
                           
                           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2 min-h-[300px]">
@@ -1199,7 +1225,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                                           </div>
                                           <button 
                                              onClick={() => handleQuickAddNeighbor(neighbor)}
-                                             className="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shrink-0 active:scale-95"
+                                             className="ml-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shrink-0 active:scale-95"
                                           >
                                              {isDep ? 'Link' : 'Deploy'}
                                           </button>
@@ -1207,7 +1233,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                                   )
                               })}
                           </div>
-                      </>
+                      </div>
                   )}
               </div>
           </div>
@@ -1216,33 +1242,33 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         {/* LEGEND MODAL */}
         {showLegend && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-              <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-                  <button onClick={() => setShowLegend(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+              <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                  <button onClick={() => setShowLegend(false)} className="absolute top-4 right-4 md:top-6 md:right-6 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                   
-                  <h2 className="text-3xl font-black text-white mb-6 uppercase tracking-tighter">Builder Guide</h2>
+                  <h2 className="text-2xl md:text-3xl font-black text-white mb-6 uppercase tracking-tighter pr-8">Builder Guide</h2>
                   
-                  <div className="space-y-6">
+                  <div className="space-y-5 md:space-y-6">
                       <section>
-                          <h3 className="text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Tools</h3>
-                          <ul className="space-y-3 text-sm text-slate-300">
+                          <h3 className="text-[10px] md:text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Tools</h3>
+                          <ul className="space-y-2 md:space-y-3 text-xs md:text-sm text-slate-300">
                               <li><strong className="text-white">Move:</strong> Drag nodes to organize your web. Click a node without dragging to see its details.</li>
-                              <li><strong className="text-white">Toggle Edge:</strong> Connect nodes. Click a source node (turns amber), then click a valid destination to select that path (turns bright purple).</li>
+                              <li><strong className="text-white">Link:</strong> Connect nodes. Click a source node (turns amber), then click a valid destination to select that path (turns bright purple).</li>
                               <li><strong className="text-white">Start / Target:</strong> Assign the puzzle's beginning (White) and end (Cyan).</li>
                           </ul>
                       </section>
                       
                       <section>
-                          <h3 className="text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Node Colors</h3>
-                          <div className="grid grid-cols-2 gap-3">
+                          <h3 className="text-[10px] md:text-xs text-indigo-400 font-bold uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Node Colors</h3>
+                          <div className="grid grid-cols-2 gap-2 md:gap-3">
                               {Object.entries(TYPE_MAP).map(([typeKey, name]) => {
                                   const typeNum = Number(typeKey);
                                   const color = NODE_COLORS[typeNum] || 0xffffff;
                                   return (
-                                      <div key={typeKey} className="flex items-center gap-3 bg-slate-950 p-2 rounded-lg border border-white/5">
-                                          <div className="w-3 h-3 rounded-full shadow-md" style={{ backgroundColor: `#${color.toString(16)}` }}></div>
-                                          <span className="text-xs font-bold text-slate-300">{name}</span>
+                                      <div key={typeKey} className="flex items-center gap-2 md:gap-3 bg-slate-950 p-2 rounded-lg border border-white/5">
+                                          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shadow-md shrink-0" style={{ backgroundColor: `#${color.toString(16)}` }}></div>
+                                          <span className="text-[10px] md:text-xs font-bold text-slate-300 truncate">{name}</span>
                                       </div>
                                   );
                               })}
@@ -1252,7 +1278,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
                   <button 
                       onClick={() => setShowLegend(false)}
-                      className="w-full mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+                      className="w-full mt-6 md:mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-3.5 md:py-4 rounded-xl transition-colors shadow-lg shadow-indigo-500/20 active:scale-95"
                   >
                       Understood
                   </button>
