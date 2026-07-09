@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase';
+
+// Fetch the last 30 days of challenges
+const { data: pastWebs } = await supabase
+  .from('daily_challenges')
+  .select('play_date, metadata')
+  .order('play_date', { ascending: false })
+  .limit(30);
+---
+
+<Layout title="Archive | Past Driftaku Webs">
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        <h1 class="text-4xl font-black text-white uppercase tracking-tighter mb-8">Past Webs</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pastWebs?.map((web) => (
+                <a href={`/play/daily/${web.play_date}`} class="bg-slate-900 border border-white/10 p-6 rounded-2xl hover:border-indigo-500 transition-all flex justify-between items-center group">
+                    <div>
+                        <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">{web.play_date}</p>
+                        <h2 class="text-lg font-bold text-white">{web.metadata.title}</h2>
+                    </div>
+                    <span class="text-slate-600 group-hover:text-indigo-400 transition">→</span>
+                </a>
+            ))}
+        </div>
+    </main>
+</Layout>

@@ -1,0 +1,27 @@
+---
+export const prerender = false;
+import Layout from '../../../layouts/Layout.astro';
+import GameClient from '../../../components/game/GameClient.tsx';
+import { supabase } from '../../../lib/supabase';
+
+const { date } = Astro.params;
+
+const { data: challenge } = await supabase
+    .from('daily_challenges')
+    .select('metadata, nodes_data, intended_path')
+    .eq('play_date', date)
+    .single();
+
+if (!challenge) return Astro.redirect('/404');
+---
+
+<Layout title={`Web for ${date}`}>
+    <div class="h-screen w-screen bg-slate-950">
+        <GameClient 
+            client:only="react" 
+            levelData={{ metadata: challenge.metadata, nodes: challenge.nodes_data }} 
+            intendedPath={challenge.intended_path}
+            onWin={() => {}}
+        />
+    </div>
+</Layout>

@@ -457,9 +457,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
                         {(() => {
-                            const filteredNodes = warehouseNodes.filter(node => 
-                                node.name.toLowerCase().includes(searchQuery.toLowerCase())
-                            );
+                            const query = searchQuery.toLowerCase();
+                            const filteredNodes = warehouseNodes.filter(node => {
+                                const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "";
+                                return node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                typeStr.toLowerCase().includes(query);
+                            });
 
                             return filteredNodes.map(node => {
                                 const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";

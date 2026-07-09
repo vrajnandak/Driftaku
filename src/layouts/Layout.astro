@@ -8,7 +8,7 @@ interface Props {
 
 const { 
 	title = "Driftaku | The Ultimate Anime Connection Challenge", 
-	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. New challenges daily!" 
+	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Daily puzzles and anime wallpaper !" 
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
@@ -48,11 +48,15 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 				<a href="/" class="text-2xl font-bold tracking-tighter text-indigo-400">DRIFT<span class="text-white">AKU</span></a>
 				<div class="space-x-6 text-sm font-medium hidden md:flex">
 					<a href="/archive" class="hover:text-indigo-400 transition">Past Webs</a>
-					<a href="/how-to-play" class="hover:text-indigo-400 transition">How to Play</a>
+					<a href="/wallpaper" class="hover:text-indigo-400 transition">Anime Wallpaper</a>
 					<a href="/leaderboard" class="hover:text-indigo-400 transition">Leaderboard</a>
+					<a href="/how-to-play" class="hover:text-indigo-400 transition">How to Play</a>
 				</div>
+				<div class="md:hidden text-xs font-bold">MENU</div>
 			</div>
 		</nav>
+
+		
 
 		<slot />
 

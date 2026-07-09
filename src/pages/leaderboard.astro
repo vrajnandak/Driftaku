@@ -1,0 +1,37 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase';
+
+// Fetch top 10 from a results table
+const { data: scores } = await supabase
+  .from('results')
+  .select('player_name, time, date')
+  .order('time', { ascending: true })
+  .limit(10);
+---
+
+<Layout title="Leaderboard | Driftaku">
+    <main class="max-w-3xl mx-auto px-4 py-12">
+        <h1 class="text-4xl font-black text-white uppercase mb-8">Top Drifters</h1>
+        <div class="bg-slate-900 rounded-2xl border border-white/10 p-6">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="text-slate-500 uppercase text-xs tracking-widest border-b border-white/10">
+                        <th class="pb-4">Rank</th>
+                        <th class="pb-4">Player</th>
+                        <th class="pb-4">Time</th>
+                    </tr>
+                </thead>
+                <tbody class="text-white">
+                    {scores?.map((s, i) => (
+                        <tr class="border-b border-white/5">
+                            <td class="py-4 font-black">{i + 1}</td>
+                            <td class="py-4">{s.player_name}</td>
+                            <td class="py-4 font-mono text-emerald-400">{s.time}s</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </main>
+</Layout>
