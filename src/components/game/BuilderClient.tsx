@@ -48,6 +48,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [isModalExpanded, setIsModalExpanded] = useState(false);
@@ -64,6 +65,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false); 
   const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   useEffect(() => {
     if (builderData) {
@@ -773,7 +776,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     });
 
     if (node.image) {
-    //   PIXI.Assets.load(node.image).then(tex => {
         const tex = PIXI.Assets.get(node.image);
         if (tex) {
             const s = new PIXI.Sprite(tex);
@@ -781,7 +783,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
             s.mask = m; container.addChild(m, s); icon.visible = false;
         }
-    //   }).catch(e => console.error(e));
     }
     return { container, bg, icon };
   };
@@ -814,80 +815,99 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   if (!builderData) return <div className="text-indigo-400 text-center py-20 animate-pulse uppercase tracking-widest font-bold text-xs bg-slate-950 h-screen w-full flex items-center justify-center">Unpacking drafting map...</div>;
 
   return (
-    <div ref={mainContainerRef} className="flex h-full w-full font-sans bg-slate-950">
+    <div ref={mainContainerRef} className="relative flex h-full w-full font-sans bg-slate-950 overflow-hidden">
       
       {/* SIDEBAR */}
-      <div className="w-80 h-full border-r border-white/10 flex flex-col bg-slate-900 shadow-2xl z-20 shrink-0">
-        <div className="p-5 border-b border-white/10 bg-slate-900/50">
-          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic mb-4">Warehouse</h2>
-          
-          <div className="relative mb-4">
-            <input 
-              type="text" placeholder="Search anime, actors..." 
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-            <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-
-          <div className="flex justify-between items-end">
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.nodes.length}</span>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
-          {filteredNodes.length === 0 && <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>}
-          {filteredNodes.map((node: GameNode) => {
-            const deployed = isDeployed(node.id);
-            const typeString = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
-            const colorCode = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16)}`;
-
-            return (
-              <div 
-                key={node.id} 
-                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border
-                  ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
-                onClick={() => { if (!deployed) deployNode(node); }}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
-                    {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                  </div>
-                  <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
-                    <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorCode}}>
-                        {typeString}
-                    </p>
-                  </div>
-                </div>
-
-                {deployed && (
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); }}
-                      className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                    >
-                      Locate
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                      className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                    >
-                      Retract
-                    </button>
-                  </div>
-                )}
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-80 translate-x-0' : '-translate-x-full w-80'}`}>
+        {isSidebarOpen && (
+          <>
+            <div className="p-5 border-b border-white/10 bg-slate-900/50">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
+                <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                </button>
               </div>
-            )
-          })}
-        </div>
+              
+              <div className="relative mb-4">
+                <input 
+                  type="text" placeholder="Search anime, actors..." 
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+                <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+
+              <div className="flex justify-between items-end">
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
+                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.nodes.length}</span>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
+              {filteredNodes.length === 0 && <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>}
+              {filteredNodes.map((node: GameNode) => {
+                const deployed = isDeployed(node.id);
+                const typeString = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
+                const colorCode = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16)}`;
+
+                return (
+                  <div 
+                    key={node.id} 
+                    className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border
+                      ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
+                    onClick={() => { if (!deployed) deployNode(node); }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
+                        {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                      </div>
+                      <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
+                        <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                        <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorCode}}>
+                            {typeString}
+                        </p>
+                      </div>
+                    </div>
+
+                    {deployed && (
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); }}
+                          className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                        >
+                          Locate
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                          className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                        >
+                          Retract
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
 
+      {/* SHOW BUTTON (Visible when sidebar is closed) */}
+      {!isSidebarOpen && (
+          <button 
+              onClick={toggleSidebar}
+              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
+          >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+          </button>
+      )}
+
       {/* CANVAS AREA */}
-      <div className="flex-1 relative bg-slate-950 h-full overflow-hidden">
+      <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
         
         {/* TOOLBAR */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
