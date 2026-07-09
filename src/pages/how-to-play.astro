@@ -1,27 +1,302 @@
 ---
+export const prerender = true; 
 import Layout from '../layouts/Layout.astro';
+
+// These stats can be updated manually whenever you run your Python script
+const stats = {
+    anime: "3,800+",
+    characters: "32,000+",
+    studios: "230+",
+    actors: "2,400+"
+};
 ---
 
-<Layout title="How to Play | Driftaku">
-    <main class="max-w-3xl mx-auto px-4 py-12 prose prose-invert">
-        <h1 class="text-5xl font-black text-white uppercase tracking-tighter mb-8">How to Drift</h1>
+<Layout title="How to Play | Driftaku" description="Master the rules of Driftaku, learn tactical anime connection shortcuts, and design unbeatable webs for your rivals.">
+    <main class="max-w-5xl mx-auto px-4 py-12 md:py-16 overflow-hidden font-sans">
         
-        <div class="bg-slate-900 p-8 rounded-3xl border border-white/10 mb-8">
-            <h2 class="text-indigo-400">The Goal</h2>
-            <p>Connect the <strong>Start Anime</strong> to the <strong>Target Anime</strong> using the shortest path possible. Every connection must be supported by the database—either they share a Studio, a Voice Actor, or a Character.</p>
+        <!-- Hero Section -->
+        <header class="text-center mb-16 relative">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-500/20 blur-[100px] rounded-full -z-10"></div>
+            
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-6 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L2 6l8 4 8-4-8-4zM2 10l8 4 8-4M2 14l8 4 8-4"/></svg>
+                The Drifter's Handbook
+            </span>
+            
+            <h1 class="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-6 drop-shadow-lg">
+                Master the <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Web</span>
+            </h1>
+            
+            <p class="text-slate-400 max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                Tired of scrolling flat anime lists? Driftaku is a spatial logic puzzle where you navigate the massive, interconnected universe of Japanese animation. Prove you're the ultimate Otaku.
+            </p>
+        </header>
+
+        <!-- The Core Goal Card -->
+        <div class="relative bg-slate-900 border border-white/10 rounded-[2rem] p-8 md:p-10 shadow-2xl mb-16 group z-10">
+            <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-indigo-600/10 blur-[80px] rounded-full group-hover:bg-indigo-600/20 transition-all duration-700 pointer-events-none"></div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row gap-8 items-center">
+                <div class="flex-1 text-center md:text-left">
+                    <h2 class="text-2xl font-black text-white tracking-tight uppercase mb-4">The Golden Objective</h2>
+                    <p class="text-slate-300 leading-relaxed text-sm mb-4">
+                        Your mission is to establish a continuous, linked line of verified database connections from a designated 
+                        <strong class="text-white">Start Node</strong> to a final <strong class="text-cyan-400">Target Node</strong>.
+                    </p>
+                    <p class="text-slate-400 text-xs italic">
+                        It is a "Degrees of Separation" logic puzzle powered entirely by your anime, voice actor, character, and studio expertise.
+                    </p>
+                </div>
+                
+                <!-- Animated Mini-Path Visualizer -->
+                <div class="w-full md:w-auto shrink-0 bg-slate-950 p-6 rounded-2xl border border-white/5 flex flex-col gap-4 shadow-inner items-center">
+                    <div class="flex items-center gap-2 md:gap-3">
+                        <div class="w-12 h-12 rounded-full border-[3px] border-white bg-slate-900 flex items-center justify-center font-black text-xs text-white shadow-[0_0_15px_rgba(255,255,255,0.2)]">S</div>
+                        <div class="h-1 w-6 md:w-8 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_#6366f1]"></div>
+                        <div class="w-12 h-12 rounded-full border-[3px] border-indigo-500 bg-slate-900 flex items-center justify-center font-black text-xs text-indigo-400">CH</div>
+                        <div class="h-1 w-6 md:w-8 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_#6366f1]" style="animation-delay: 200ms;"></div>
+                        <div class="w-12 h-12 rounded-full border-[3px] border-cyan-400 bg-slate-900 flex items-center justify-center font-black text-xs text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">T</div>
+                    </div>
+                    <span class="text-[9px] uppercase tracking-widest font-black text-slate-500">Intended Sequence</span>
+                </div>
+            </div>
         </div>
 
-        <h2 class="text-2xl font-bold mt-10">Game Mechanics</h2>
-        <ul class="space-y-4">
-            <li><strong>Warehouse:</strong> Nodes start in the sidebar. Click to deploy them onto your workspace.</li>
-            <li><strong>The Graph:</strong> Use the <em>Move Tool</em> to arrange nodes spatially.</li>
-            <li><strong>Linking:</strong> Use the <em>Link Tool</em> to select two nodes. If they are officially related in our database, the edge will lock in bright purple.</li>
-            <li><strong>Winning:</strong> You must create a continuous path of purple edges from the Start node to the Target node.</li>
-        </ul>
+        <!-- Node Classifications (Legend) -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tight mb-2 text-center md:text-left">Node Classifications</h2>
+            <p class="text-slate-400 text-sm mb-8 text-center md:text-left max-w-2xl">Understand the color designations on the canvas. These core entities form the foundation of every web you build and solve.</p>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center hover:bg-slate-800 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-[#818cf8] shadow-[0_0_20px_#818cf8] mb-4 border-2 border-slate-950"></div>
+                    <span class="text-sm font-black text-white uppercase tracking-widest mb-1">Anime</span>
+                    <span class="text-[10px] text-slate-400">Series, Movies, OVAs</span>
+                </div>
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center hover:bg-slate-800 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-[#f43f5e] shadow-[0_0_20px_#f43f5e] mb-4 border-2 border-slate-950"></div>
+                    <span class="text-sm font-black text-white uppercase tracking-widest mb-1">Character</span>
+                    <span class="text-[10px] text-slate-400">Main & Recurring Cast</span>
+                </div>
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center hover:bg-slate-800 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-[#fbbf24] shadow-[0_0_20px_#fbbf24] mb-4 border-2 border-slate-950"></div>
+                    <span class="text-sm font-black text-white uppercase tracking-widest mb-1">Voice Actor</span>
+                    <span class="text-[10px] text-slate-400">Japanese Seiyuu</span>
+                </div>
+                <div class="bg-slate-900/50 p-6 rounded-2xl border border-white/5 flex flex-col items-center text-center hover:bg-slate-800 transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-[#10b981] shadow-[0_0_20px_#10b981] mb-4 border-2 border-slate-950"></div>
+                    <span class="text-sm font-black text-white uppercase tracking-widest mb-1">Studio</span>
+                    <span class="text-[10px] text-slate-400">Production House</span>
+                </div>
+            </div>
+        </section>
 
-        <div class="bg-slate-900 p-8 rounded-3xl border border-white/10 mt-10">
-            <h2 class="text-emerald-400">Multiplayer Tips</h2>
-            <p>In "Vs. Friends" mode, you are the architect. Your goal is to make the path as <em>difficult as possible</em> for your opponent. Use <strong>Isolated Clusters</strong> (nodes that don't help the path) to confuse them!</p>
+        <!-- Tool Guide -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tight mb-2 text-center md:text-left">Interactive Controls</h2>
+            <p class="text-slate-400 text-sm mb-8 text-center md:text-left max-w-2xl">The canvas uses physics to keep nodes separated. Master your tools to navigate massive 100+ node webs efficiently.</p>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Move Tool -->
+                <div class="bg-slate-900 border border-indigo-500/20 p-6 rounded-3xl relative overflow-hidden group">
+                    <div class="absolute -right-10 -top-10 text-8xl opacity-5 group-hover:scale-110 transition-transform">🖐️</div>
+                    <div class="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest mb-4">
+                        Move Tool
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-4">
+                        <strong>Drag</strong> nodes to organize your web. 
+                        <strong>Click</strong> a node (without dragging) to open its Info Profile. Here, you can see its exact database connections, retract it from the web, or use <span class="text-emerald-400 font-bold">Suggest Connections</span> to pull related nodes straight onto the canvas.
+                    </p>
+                </div>
+
+                <!-- Link Tool -->
+                <div class="bg-slate-900 border border-indigo-500/20 p-6 rounded-3xl relative overflow-hidden group">
+                    <div class="absolute -right-10 -top-10 text-8xl opacity-5 group-hover:scale-110 transition-transform">🔗</div>
+                    <div class="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest mb-4">
+                        Toggle Edge
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-4">
+                        Used to verify paths. <br/>
+                        1. Click your <strong>Source Node</strong> (it turns Amber).<br/>
+                        2. Click a valid <strong>Destination Node</strong>.<br/>
+                        If the database confirms they are connected, the edge turns bright purple! Click again to sever the link.
+                    </p>
+                </div>
+
+                <!-- Set Start / Target -->
+                <div class="bg-slate-900 border border-indigo-500/20 p-6 rounded-3xl relative overflow-hidden group">
+                    <div class="absolute -right-10 -top-10 text-8xl opacity-5 group-hover:scale-110 transition-transform">🎯</div>
+                    <div class="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest mb-4">
+                        Start & Target
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-4">
+                        Required in the Build Phase. Click a node to designate it as the puzzle's <strong>Start</strong> (gets a thick <span class="text-white font-bold">White</span> border) or the <strong>Target</strong> (gets a thick <span class="text-cyan-400 font-bold">Cyan</span> border).
+                    </p>
+                </div>
+
+                <!-- Warehouse -->
+                <div class="bg-slate-900 border border-indigo-500/20 p-6 rounded-3xl relative overflow-hidden group">
+                    <div class="absolute -right-10 -top-10 text-8xl opacity-5 group-hover:scale-110 transition-transform">🔎</div>
+                    <div class="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest mb-4">
+                        Warehouse & Camera
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-4">
+                        Use the left Sidebar to search and deploy new nodes to your canvas. Lost a node? Click the <strong>Locate</strong> button next to it in the sidebar to instantly pan the camera to its exact coordinates.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Connection Rules Scenario Sandbox -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tight mb-2 text-center md:text-left">Connection Tactics</h2>
+            <p class="text-slate-400 text-sm mb-8 text-center md:text-left max-w-2xl">Every link on your canvas must exist in the real-world database. Here are the tactical patterns you must master to win:</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Scenario A -->
+                <div class="bg-slate-900/50 border border-white/5 rounded-3xl p-6 hover:border-indigo-500/30 transition-colors group">
+                    <span class="text-[10px] uppercase tracking-widest font-black text-emerald-400 mb-3 block">Pattern A</span>
+                    <h3 class="text-xl font-bold text-white mb-2 leading-tight group-hover:text-indigo-400 transition-colors">The Studio Hub Drift</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed mb-6">A single studio can connect to multiple separate anime nodes. This is the fastest way to bridge separate universes if both shows were animated by the same powerhouse (e.g., MAPPA or Madhouse)!</p>
+                    
+                    <div class="bg-slate-950 p-4 rounded-2xl flex items-center justify-center gap-3 shadow-inner">
+                        <div class="w-10 h-10 rounded-full border-[3px] border-[#818cf8] bg-slate-900 flex items-center justify-center text-[10px] font-bold text-indigo-400 shadow-[0_0_10px_#818cf8]">A1</div>
+                        <div class="flex-1 h-0.5 bg-slate-700"></div>
+                        <div class="w-12 h-12 rounded-full border-[3px] border-[#10b981] bg-slate-900 flex items-center justify-center text-[10px] font-bold text-emerald-400 shadow-[0_0_10px_#10b981]">STD</div>
+                        <div class="flex-1 h-0.5 bg-slate-700"></div>
+                        <div class="w-10 h-10 rounded-full border-[3px] border-[#818cf8] bg-slate-900 flex items-center justify-center text-[10px] font-bold text-indigo-400 shadow-[0_0_10px_#818cf8]">A2</div>
+                    </div>
+                </div>
+
+                <!-- Scenario B -->
+                <div class="bg-slate-900/50 border border-white/5 rounded-3xl p-6 hover:border-amber-500/30 transition-colors group">
+                    <span class="text-[10px] uppercase tracking-widest font-black text-amber-400 mb-3 block">Pattern B</span>
+                    <h3 class="text-xl font-bold text-white mb-2 leading-tight group-hover:text-amber-400 transition-colors">The Seiyuu Wormhole</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed mb-6">You cannot connect an Anime directly to a Voice Actor. You must route through a character node. Famous Seiyuus act as massive intersections connecting dozens of shows!</p>
+                    
+                    <div class="bg-slate-950 p-4 rounded-2xl flex items-center justify-center gap-2 shadow-inner">
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#818cf8] text-[8px] flex items-center justify-center text-indigo-300">A1</div>
+                        <span class="text-slate-700 text-[10px]">→</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#f43f5e] text-[8px] flex items-center justify-center text-rose-300">CH</div>
+                        <span class="text-slate-700 text-[10px]">→</span>
+                        <div class="w-10 h-10 rounded-full bg-slate-900 border-[3px] border-[#fbbf24] text-[10px] font-bold flex items-center justify-center text-amber-400 shadow-[0_0_10px_#fbbf24]">VA</div>
+                        <span class="text-slate-700 text-[10px]">→</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#f43f5e] text-[8px] flex items-center justify-center text-rose-300">CH</div>
+                        <span class="text-slate-700 text-[10px]">→</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#818cf8] text-[8px] flex items-center justify-center text-indigo-300">A2</div>
+                    </div>
+                </div>
+
+                <!-- Scenario C -->
+                <div class="bg-slate-900/50 border border-white/5 rounded-3xl p-6 hover:border-indigo-500/30 transition-colors group">
+                    <span class="text-[10px] uppercase tracking-widest font-black text-indigo-400 mb-3 block">Pattern C</span>
+                    <h3 class="text-xl font-bold text-white mb-2 leading-tight group-hover:text-indigo-400 transition-colors">The Sequel Jump</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed mb-6">Sequels and Prequels (e.g., S1 and S2) link to each other directly! You don't need a Character or VA to bridge them, allowing you to bypass typical logical blocks.</p>
+                    
+                    <div class="bg-slate-950 p-4 rounded-2xl flex items-center justify-center gap-4 shadow-inner">
+                        <div class="px-4 py-2 rounded-xl border border-indigo-400 bg-indigo-500/10 text-indigo-400 text-xs font-bold">Season 1</div>
+                        <div class="flex items-center gap-1 text-indigo-500 animate-pulse">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        </div>
+                        <div class="px-4 py-2 rounded-xl border border-indigo-400 bg-indigo-500/10 text-indigo-400 text-xs font-bold">Season 2</div>
+                    </div>
+                </div>
+
+                <!-- Scenario D -->
+                <div class="bg-slate-900/50 border border-white/5 rounded-3xl p-6 hover:border-emerald-500/30 transition-colors group">
+                    <span class="text-[10px] uppercase tracking-widest font-black text-emerald-400 mb-3 block">Pattern D</span>
+                    <h3 class="text-xl font-bold text-white mb-2 leading-tight group-hover:text-emerald-400 transition-colors">The Studio Shift Gate</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed mb-6">Some franchises change studios midway. Attack on Titan S1 only connects to WIT Studio, while S4 only connects to MAPPA! Use sequels to jump between studios.</p>
+                    
+                    <div class="bg-slate-950 p-4 rounded-2xl flex items-center justify-center gap-2 shadow-inner">
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#10b981] text-[8px] flex items-center justify-center text-emerald-300">WIT</div>
+                        <span class="text-slate-700 text-[10px]">↔</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#818cf8] text-[8px] flex items-center justify-center text-indigo-300">S1</div>
+                        <span class="text-indigo-500 text-[10px] font-bold">Jump</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#818cf8] text-[8px] flex items-center justify-center text-indigo-300">S4</div>
+                        <span class="text-slate-700 text-[10px]">↔</span>
+                        <div class="w-8 h-8 rounded-full bg-slate-900 border-[3px] border-[#10b981] text-[8px] flex items-center justify-center text-emerald-300">MAP</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Block -->
+        <section class="mb-16 bg-gradient-to-r from-indigo-900 to-slate-900 rounded-3xl p-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden">
+            <div class="absolute right-0 top-0 w-64 h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiPjwvcmVjdD4KPHBhdGggZD0iTTAgMEw4IDhaTTAgOEw4IDBaIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSI+PC9wYXRoPgo8L3N2Zz4=')] opacity-20 pointer-events-none"></div>
+            
+            <h2 class="text-xl font-black text-white uppercase tracking-widest mb-6 relative z-10 text-center">Database Scale</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 relative z-10">
+                <div class="text-center">
+                    <p class="text-3xl md:text-4xl font-black text-indigo-400">{stats.anime}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Anime Titles</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-3xl md:text-4xl font-black text-rose-400">{stats.characters}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Characters</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-3xl md:text-4xl font-black text-amber-400">{stats.actors}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Voice Actors</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-3xl md:text-4xl font-black text-emerald-400">{stats.studios}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Studios</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- VS FRIENDS STRATEGY -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tight mb-2">Tactical Setup: VS. Friends</h2>
+            <p class="text-slate-400 text-sm mb-8 max-w-3xl">In multiplayer battles, you aren't just solving; you are constructing traps. During the <strong>Build Phase</strong>, your mission is to layout a labyrinth of misleading branches to stall your opponent.</p>
+            
+            <div class="grid sm:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-rose-500/20 p-6 rounded-3xl hover:bg-slate-800 transition-colors">
+                    <div class="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center mb-4 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
+                        <svg class="w-6 h-6 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    </div>
+                    <h4 class="text-white text-lg font-black uppercase mb-2">Deploy Red Herrings</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">Place nodes linked to your path that lead to deep dead-ends. Tempt your opponent into wasting time tracing useless wormholes.</p>
+                </div>
+                <div class="bg-slate-900 border border-emerald-500/20 p-6 rounded-3xl hover:bg-slate-800 transition-colors">
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                        <svg class="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                    </div>
+                    <h4 class="text-white text-lg font-black uppercase mb-2">Isolated Clusters</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">Create miniature webs completely disconnected from the main path. If your opponent lacks database familiarity, they won't know which web is real!</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 bg-indigo-500/10 border border-indigo-500/20 p-5 rounded-2xl flex items-start gap-4 shadow-inner">
+                <span class="text-2xl mt-1">💡</span>
+                <div>
+                    <h4 class="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-1">Builder's Secret</h4>
+                    <p class="text-xs text-slate-300 leading-relaxed">If you are struggling to build a trap, use the <strong>Auto-Build</strong> feature! It generates a mathematically perfect maze based on your exact slider settings, ensuring your opponent suffers while you sit back and relax.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Play Button -->
+        <div class="text-center mt-20 pb-10">
+            <a href="/play/daily" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest px-12 py-5 rounded-2xl shadow-[0_0_40px_rgba(99,102,241,0.3)] hover:shadow-[0_0_60px_rgba(99,102,241,0.5)] active:scale-95 transition-all text-sm group">
+                Initiate First Drift
+                <span class="inline-block ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </a>
+            <div class="mt-6 flex justify-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                <a href="/play/friends" class="hover:text-white transition-colors border-b border-transparent hover:border-white pb-1">Or Create a Lobby</a>
+            </div>
         </div>
     </main>
 </Layout>
+
+<style>
+    /* Prevent layout shifting from custom scrollbars */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
