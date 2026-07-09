@@ -3,6 +3,7 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
+import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx'; // Import new component
 import GameHeader from '../../components/game/GameHeader.astro';
 import { supabase } from '../../lib/supabase';
 
@@ -15,7 +16,7 @@ const today = new Intl.DateTimeFormat('en-CA', {
 // 2. Fetch directly from Supabase
 const { data: challenge, error } = await supabase
     .from('daily_challenges')
-    .select('metadata, nodes_data, intended_path')
+    .select('metadata, nodes_data, intended_path, results')
     .eq('play_date', today)
     .single();
 
@@ -32,11 +33,43 @@ const levelData = {
     metadata: challenge.metadata,
     nodes: challenge.nodes_data
 };
+
+const initialResults = challenge.results || [];
 ---
 
 <Layout title={`Daily Web | Driftaku`}>
     <main class="max-w-5xl mx-auto px-4 py-8">
-        <div class="bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+            
+            <!-- GAME SECTION -->
+            <div class="lg:col-span-3 bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
+                <GameHeader 
+                    title={challenge.metadata.title || "Daily Challenge"}
+                    startName={challenge.metadata.start_name}
+                    endName={challenge.metadata.end_name}
+                />
+
+                <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
+                    <DailyGameWrapper 
+                        client:only="react" 
+                        levelData={levelData} 
+                        intendedPath={challenge.intended_path}
+                        dbLoadTime={dbLoadTimeMS}
+                    />
+                </div>
+            </div>
+
+            <!-- LEADERBOARD SECTION -->
+            <div class="lg:col-span-1 h-full min-h-[400px]">
+                <DailyLeaderboard 
+                    client:load 
+                    initialResults={initialResults} 
+                    playDate={today} 
+                />
+            </div>
+            
+        </div>
+        <!-- <div class="bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
             <GameHeader 
                 title={challenge.metadata.title}
                 startName={challenge.metadata.start_name}
@@ -51,6 +84,6 @@ const levelData = {
                     dbLoadTime = {dbLoadTimeMS}
                 />
             </div>
-        </div>
+        </div> -->
     </main>
 </Layout>

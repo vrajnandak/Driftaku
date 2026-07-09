@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GameClient from '../GameClient';
 import type { LevelData } from '../../types/game';
+import { supabase } from '@/lib/supabase';
 
 interface Props {
   levelData: LevelData;
@@ -15,6 +16,9 @@ const DailyGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTime
   const [isReady, setIsReady] = useState(false);
   const [progress, setProgress] = useState(0);
   const [assetLoadTime, setAssetLoadTime] = useState<string>("0.00");
+
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -67,13 +71,33 @@ const DailyGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTime
     return () => { isMounted = false; };
   }, [levelData]);
 
-  const handleWin = (time: number) => {
+  const handleWin = async (time: number) => {
     // PB Logic
     const key = `driftaku_pb_daily_${levelData.metadata.level || new Date().toISOString().split('T')[0]}`;
     const previousBest = localStorage.getItem(key);
     if (!previousBest || time < parseFloat(previousBest)) {
       localStorage.setItem(key, time.toString());
     }
+    const playerName = localStorage.getItem('driftaku_player_name') || 'Guest';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
+    const { error } = await supabase.rpc('add_daily_score', { 
+        p_date: today, 
+        p_name: playerName, 
+        p_time: time 
+    });
+    console.log("playerName:", playerName, " today:", today);
+    if (error) console.error("Leaderboard update failed", error);
+
+    // 3. Fetch Top 10
+    const { data: updatedChallenge } = await supabase
+        .from('daily_challenges')
+        .select('results')
+        .eq('play_date', today)
+        .single();
+    
+    if (updatedChallenge) setLeaderboard(updatedChallenge.results);
+
     window.dispatchEvent(new CustomEvent('game-won', { detail: { time } }));
   };
 
