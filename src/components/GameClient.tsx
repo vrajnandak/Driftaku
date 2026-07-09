@@ -84,13 +84,29 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
       
       targetZoomRef.current = 1; 
       vp.animate({
-          position: new PIXI.Point(1000, 1000),
+          position: { x: 1000, y: 1000},
           scale: 1,
           time: 400,
           ease: 'easeOutQuart',
           removeOnInterrupt: true
       });
   };
+
+  const handleLocateNode = (nodeId: number) => {
+    const vp = viewportRef.current;
+    const node = stateRef.current.workspaceNodes.find(n => n.id === nodeId);
+    if(!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
+    const targetScale = 1.3;
+    targetZoomRef.current = targetScale;
+    // Fixed: Passing raw object coordinates ensures smooth transition without constructor bugs
+    vp.animate({ 
+        position: { x: node.x, y: node.y }, 
+        scale: targetScale, 
+        time: 500, 
+        ease: 'easeInOutCubic', 
+        removeOnInterrupt: true 
+    });
+  }
 
   // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
   useEffect(() => {
@@ -119,12 +135,14 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
       app.stage.addChild(viewport);
       viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
       viewport.on('zoomed', () => { targetZoomRef.current = null; });
+      viewport.on('drag-start', () => { targetZoomRef.current = null; });
+      viewport.on('pinch-start', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
       // FIXED: ResizeObserver guarantees the Viewport math updates when entering Fullscreen
       resizeObserver = new ResizeObserver(() => {
-          if (app && viewportRef.current && containerRef.current) {
-              app.resize();
+          if (appRef.current && viewportRef.current && containerRef.current) {
+              appRef.current.resize();
               viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
           }
       });
@@ -274,8 +292,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         if (activeInfo !== null) return;
         
         // FIXED: Capture starting canvas-local coordinates
-        const startX = e.global.x; 
-        const startY = e.global.y;
+        const startX = e.nativeEvent.clientX; 
+        const startY = e.nativeEvent.clientY;
         let hasDragged = false;
 
         // FIXED: Using Native PointerEvent securely translated to Canvas Bounds
@@ -363,16 +381,18 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
   };
 
   const deployNode = (node: GameNode) => {
-    setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100) }]);
-    setWarehouseNodes(prev => prev.filter(n => n.id !== node.id));
+    setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100 - 50) }]);
+    // setWarehouseNodes(prev => prev.filter(n => n.id !== node.id));
   };
 
   const retractNode = (nodeId: number) => {
     if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
-    const node = workspaceNodes.find(n => n.id === nodeId)!;
-    setWarehouseNodes(prev => [...prev, node]);
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
     setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
+    // const node = workspaceNodes.find(n => n.id === nodeId)!;
+    // setWarehouseNodes(prev => [...prev, node]);
+    // setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
+    // setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
   };
 
   const checkWinCondition = (links: UserLink[]) => {
@@ -429,6 +449,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     }, 3000);
   };
 
+  const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
+
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       
@@ -441,18 +463,23 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                           <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
                       </div>
-                      <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
+                      <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                       </button>
                   </div>
-                  <div className="p-3">
-                    <input 
-                      type="text"
-                      placeholder="Search anime, actors..."
-                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                  <div className="p-3 bg-slate-900/50">
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="Search anime, actors..."
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                      <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
@@ -464,25 +491,62 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                                 typeStr.toLowerCase().includes(query);
                             });
 
+                            if (filteredNodes.length === 0) return <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>;
+
                             return filteredNodes.map(node => {
+                                const deployed = isDeployed(node.id);
                                 const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
                                 const colorStr = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`;
                                 return (
-                                <div 
+                                  <div 
                                     key={node.id} 
-                                    onClick={() => deployNode(node)} 
-                                    className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
+                                    onClick={() => { if (!deployed) deployNode(node); }}
+                                    className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border cursor-pointer active:scale-95
+                                      ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400'}`}
                                 >
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                                        {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
+                                            {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                        </div>
+                                        <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
+                                            <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                                            <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorStr}}>
+                                                {typeStr}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{color: colorStr}}>
-                                            {typeStr}
-                                        </p>
-                                    </div>
+                                    {deployed && (
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); }}
+                                                className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                                            >
+                                                Locate
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                                                className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                                            >
+                                                Retract
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
+                                // <div 
+                                //     key={node.id} 
+                                //     onClick={ () => { if (!deployed) deployNode(node);} }
+                                //     className="bg-slate-800/50 border border-white/5 p-2 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-indigo-600 transition-all active:scale-95"
+                                // >
+                                //     <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                //         {node.image && <img src={node.image} className="w-full h-full object-cover" />}
+                                //     </div>
+                                //     <div className="flex-1 min-w-0">
+                                //         <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
+                                //         <p className="text-[8px] font-black uppercase tracking-widest" style={{color: colorStr}}>
+                                //             {typeStr}
+                                //         </p>
+                                //     </div>
+                                // </div>
                             )});
                         })()}
                     </div>
@@ -515,12 +579,14 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
             >
                 Move
             </button>
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             <button 
                 onClick={() => {setTool('link'); stateRef.current.tool='link';}}
                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white'}`}
             >
                 Link {selectedNodeId && "(!)"}
             </button>
+            <div className="w-px h-6 bg-white/10 mx-1 self-center" />
             <button 
                 onClick={() => setIsLegendOpen(true)}
                 className="px-4 py-2.5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white transition-all"
@@ -568,7 +634,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                         <span className="text-[11px] text-white font-bold whitespace-nowrap">{node.name}</span>
                         {node.id !== levelData.metadata.start_node && node.id !== levelData.metadata.end_node && (
                             <button 
-                                onClick={() => retractNode(node.id)}
+                                onClick={(e) => {e.stopPropagation(); retractNode(node.id);}}
                                 className="w-5 h-5 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs"
                             >
                                 ×
