@@ -2,27 +2,62 @@
 import Layout from '../layouts/Layout.astro';
 import { supabase } from '../lib/supabase';
 
-// Fetch the last 30 days of challenges
 const { data: pastWebs } = await supabase
   .from('daily_challenges')
-  .select('play_date, metadata')
+  .select('play_date, metadata, nodes_data, results')
   .order('play_date', { ascending: false })
   .limit(30);
+
+// Helper to find node image
+const getImageUrl = (nodes: any[], nodeId: number) => 
+    nodes.find(n => n.id === nodeId)?.image;
 ---
 
-<Layout title="Archive | Past Driftaku Webs">
-    <main class="max-w-4xl mx-auto px-4 py-12">
-        <h1 class="text-4xl font-black text-white uppercase tracking-tighter mb-8">Past Webs</h1>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {pastWebs?.map((web) => (
-                <a href={`/play/daily/${web.play_date}`} class="bg-slate-900 border border-white/10 p-6 rounded-2xl hover:border-indigo-500 transition-all flex justify-between items-center group">
-                    <div>
-                        <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">{web.play_date}</p>
-                        <h2 class="text-lg font-bold text-white">{web.metadata.title}</h2>
+<Layout title="Archive | Driftaku Past Webs">
+    <main class="max-w-6xl mx-auto px-4 py-16">
+        <header class="mb-12">
+            <h1 class="text-5xl font-black text-white uppercase tracking-tighter mb-4">The Archive</h1>
+            <p class="text-slate-400">Revisit your favorite daily challenges and see who holds the record.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pastWebs?.map((web) => {
+                const nodes = web.nodes_data;
+                const startImg = getImageUrl(nodes, web.metadata.start_node);
+                const endImg = getImageUrl(nodes, web.metadata.end_node);
+                const bestTime = web.results?.length > 0 
+                    ? Math.min(...web.results.map((r: any) => r.time)).toFixed(1) 
+                    : '--';
+
+                return (
+                    <div class="bg-slate-900 border border-white/10 rounded-3xl p-5 hover:border-indigo-500/50 transition-all shadow-xl group">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">{web.play_date}</p>
+                                <h3 class="text-md font-bold text-white">{web.metadata.title}</h3>
+                            </div>
+                            <div class="bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-emerald-400">
+                                PB: {bestTime}s
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between gap-2 mb-6">
+                            <img src={startImg} class="w-16 h-16 rounded-xl bg-black border border-white/10" />
+                            <div class="text-slate-600">→</div>
+                            <img src={endImg} class="w-16 h-16 rounded-xl bg-black border border-white/10" />
+                        </div>
+
+                        <div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
+                            <span>{nodes.length} Nodes</span>
+                            <span>{web.results?.length || 0} Attempts</span>
+                        </div>
+
+                        <a href={`/play/daily/${web.play_date}`} class="block w-full py-3 bg-slate-800 hover:bg-indigo-600 text-white font-black uppercase tracking-widest text-center rounded-xl transition-all">
+                            Play Now
+                        </a>
                     </div>
-                    <span class="text-slate-600 group-hover:text-indigo-400 transition">→</span>
-                </a>
-            ))}
+                );
+            })}
         </div>
     </main>
 </Layout>
