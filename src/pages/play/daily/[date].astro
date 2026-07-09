@@ -1,27 +1,34 @@
 ---
 export const prerender = false;
 import Layout from '../../../layouts/Layout.astro';
-import GameClient from '../../../components/GameClient.tsx';
+import ArchiveGameWrapper from '../../../components/game/ArchiveGameWrapper';
 import { supabase } from '../../../lib/supabase';
 
 const { date } = Astro.params;
 
-const { data: challenge } = await supabase
+// Measure Server-Side DB fetch time
+const t0 = performance.now();
+const { data: challenge, error } = await supabase
     .from('daily_challenges')
     .select('metadata, nodes_data, intended_path')
     .eq('play_date', date)
     .single();
+const t1 = performance.now();
+const dbLoadTime = (t1 - t0).toFixed(2);
 
-if (!challenge) return Astro.redirect('/404');
+if (error || !challenge) {
+    return Astro.redirect('/404');
+}
 ---
 
-<Layout title={`Web for ${date}`}>
-    <div class="h-screen w-screen bg-slate-950">
-        <GameClient 
+<Layout title={`Driftaku Archive - ${date}`}>
+    <div class="h-screen w-screen bg-slate-950 overflow-hidden">
+        <ArchiveGameWrapper 
             client:only="react" 
             levelData={{ metadata: challenge.metadata, nodes: challenge.nodes_data }} 
             intendedPath={challenge.intended_path}
-            onWin={() => {}}
+            dbLoadTime={dbLoadTime}
+            playDate={date}
         />
     </div>
 </Layout>
