@@ -39,24 +39,16 @@ export default function MatchConfig({onGraphGenerated, setLoading}: Props) {
         })
       });
 
-      console.log("Graph generation response:", response);
+      toast(`Graph generation response: ${response}`, 'info');
 
       const levelData: LevelData = await response.json();
       onGraphGenerated(levelData);
     } catch (error) {
-      console.error("Failed to generate graph:", error);
-      // alert("Failed to generate a puzzle. Try different settings!");
       toast("Failed to generate a puzzle. Try different settings!", "info");
     } finally {
       setLoading(false);
     }
   };
-
-//   const startMatch = () => {
-//     const config = { selectedTypes, maxNodes, difficulty };
-//     console.log("Starting Match with:", config);
-//     // Here you will eventually trigger your graph generation API
-//   };
 
   return (
     <div className="bg-slate-900 border border-white/10 rounded-3xl p-6">

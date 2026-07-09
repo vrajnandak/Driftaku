@@ -72,7 +72,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      mainContainerRef.current?.requestFullscreen().catch(err => console.error(err));
+      mainContainerRef.current?.requestFullscreen().catch((err) => {toast(err instanceof Error ? err.message : "Something went wrong", "error");});
     } else document.exitFullscreen();
   };
 
@@ -138,7 +138,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
       if (imageUrls.length > 0) {
         try { await PIXI.Assets.load(imageUrls); } 
-        catch (e) { console.warn("Some pixi assets failed to load.", e); }
+        catch (e) { toast("Some game assets couldn't be loaded. Some images may not display correctly.", "warning"); }
       }
 
       const viewport = new Viewport({

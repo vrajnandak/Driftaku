@@ -351,8 +351,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             setTool('move');
             handleCenterView();
         } catch (err) {
-            console.error(err);
-            toast("Could not generate a valid graph with the current parameters.", "error");
+            console.error("Failed to auto-generate graph:", err);
+            toast("Could not generate a valid graph with the current parameters.","error");
         } finally {
             setIsGenerating(false);
         }
@@ -411,6 +411,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             setSelectedEdges(finalPath);
         } catch (err) {
             console.error("Timeout fallback generation failed.", err);
+            toast("Unable to generate a valid graph. Please try again.", "error");
         }
     }
 
@@ -536,8 +537,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      mainContainerRef.current?.requestFullscreen().catch(err => console.error(err));
-    } else document.exitFullscreen();
+      mainContainerRef.current?.requestFullscreen().catch(err => console.error("Failed to enter fullscreen: ", err));
+    } else document.exitFullscreen().catch((err) => { console.error("Failed to exit fullscreen: ", err)});
   };
 
   const handleZoomIn = () => {
@@ -594,7 +595,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         try {
             await PIXI.Assets.load(imageUrls);
         } catch (e) {
-            console.warn("Some PIXI assets failed to load.", e);
+            console.error("Failed to load PIXI assets.", e);
+            toast("Some game assets couldn't be loaded. Please refresh and try again.", "error");
         }
       }
 

@@ -111,9 +111,8 @@ const FriendsLobbyForm: React.FC = () => {
     });
 
     if (error) {
-      // alert("Error creating room. Check console.");
-      toast("Error creating room. Check console.", "error");
-      console.error(error);
+      toast("Failed to create room. Please try again.", "error");
+      console.error("Error creating room:", error);
       setIsCreating(false);
       return;
     }

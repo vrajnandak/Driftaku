@@ -24,9 +24,6 @@ export const createNodeSprite = (node: GameNode, onPointerDown: (node: GameNode,
             container.addChild(m, s);
             icon.visible = false;
         });
-        //   .catch(err => {
-        //     console.error("Base64 image failed to render:", err);
-        //   });
     }
     return { container, bg, icon };
 };

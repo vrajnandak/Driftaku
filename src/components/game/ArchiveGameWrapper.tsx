@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GameClient from './../GameClient'; // Adjust path if needed
 import type { LevelData } from '../../types/game'; // Adjust path if needed
+import { toast, ToastContainer } from '../ui/Toast';
 
 interface Props {
   levelData: LevelData;
@@ -76,7 +77,7 @@ const ArchiveGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTi
 
   const handleWin = (time: number) => {
     // You can handle saving archive scores locally or to DB here later if you want
-    console.log(`Archive solved in ${time} seconds!`);
+    toast(`Archive solved in ${time} seconds!`, 'info');
   };
 
   return (
@@ -131,6 +132,7 @@ const ArchiveGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTi
           onWin={handleWin} 
         />
       )}
+      <ToastContainer />
     </div>
   );
 };

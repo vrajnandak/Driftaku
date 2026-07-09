@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import GameClient from '../GameClient';
 import type { LevelData } from '../../types/game';
 import { supabase } from '@/lib/supabase';
+import { toast, ToastContainer } from '../ui/Toast';
 
 interface Props {
   levelData: LevelData;
@@ -86,8 +87,10 @@ const DailyGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTime
         p_name: playerName, 
         p_time: time 
     });
-    console.log("playerName:", playerName, " today:", today);
-    if (error) console.error("Leaderboard update failed", error);
+    if (error) {
+      console.error("Leaderboard update failed:", error);
+      toast("Your score couldn't be saved. Please try again.", "error");
+    }
 
     // 3. Fetch Top 10
     const { data: updatedChallenge } = await supabase
@@ -165,6 +168,7 @@ const DailyGameWrapper: React.FC<Props> = ({ levelData, intendedPath, dbLoadTime
           onWin={handleWin} 
         />
       )}
+      <ToastContainer />
     </div>
   );
 };
