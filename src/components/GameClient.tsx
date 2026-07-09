@@ -10,10 +10,12 @@ import { toast, ToastContainer } from './ui/Toast';
 interface Props {
   levelData: LevelData;
   intendedPath?: string[];
+  timeLimit?: number; // NEW: Optional time limit in seconds
+  onTimeout?: () => void; // NEW: Triggers when time runs out
   onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
+const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTimeout, onWin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
@@ -28,6 +30,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
 
   // Timer state
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
+  const [timeDanger, setTimeDanger] = useState(false); // NEW: Visual cue for low time
   const timerRef = useRef<number | null>(null);
 
   // React State
@@ -53,7 +56,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     startTime: Date.now()
   });
 
-  // Responsive default: close sidebar on mobile initial load to show the game area
+  // Responsive default: close sidebar on mobile initial load
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setIsSidebarOpen(false);
@@ -266,7 +269,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     stateRef.current.selectedNodeId = selectedNodeId;
   }, [userLinks, tool, selectedNodeId]);
 
-  // --- 3. TIMER ---
+  // --- 3. DYNAMIC TIMER (COUNTUP OR COUNTDOWN) ---
   useEffect(() => {
     if (isWon) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -274,17 +277,35 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
     }
 
     stateRef.current.startTime = Date.now();
+    
     timerRef.current = window.setInterval(() => {
       const elapsed = (Date.now() - stateRef.current.startTime) / 1000;
-      const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
-      const seconds = (elapsed % 60).toFixed(1).padStart(4, '0');
-      setTimerDisplay(`${minutes}:${seconds}`);
+      
+      if (timeLimit && timeLimit > 0) {
+          // COUNTDOWN MODE
+          const remaining = Math.max(0, timeLimit - elapsed);
+          const minutes = Math.floor(remaining / 60).toString().padStart(2, '0');
+          const seconds = (remaining % 60).toFixed(1).padStart(4, '0');
+          setTimerDisplay(`${minutes}:${seconds}`);
+          
+          setTimeDanger(remaining <= 10 && remaining > 0);
+
+          if (remaining <= 0) {
+              if (timerRef.current) clearInterval(timerRef.current);
+              if (onTimeout) onTimeout();
+          }
+      } else {
+          // COUNTUP MODE (Stopwatch)
+          const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+          const seconds = (elapsed % 60).toFixed(1).padStart(4, '0');
+          setTimerDisplay(`${minutes}:${seconds}`);
+      }
     }, 100);
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isWon]);
+  }, [isWon, timeLimit, onTimeout]);
 
-  // --- NODE SPRITE & CORRECT NATIVE DOM DRAG LOGIC ---
+  // --- NODE SPRITE & DOM DRAG LOGIC ---
   const createNodeSprite = (node: GameNode): NodeVisuals => {
     const container = new PIXI.Container();
     const bg = new PIXI.Graphics();
@@ -416,7 +437,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         setTimerDisplay(finalTime.toFixed(1));
         setUiPath(path);
         setIsWon(true);
-        onWin(finalTime);
+        onWin(finalTime); // Keeps correctly returning elapsed time to parent
         return;
       }
       
@@ -601,8 +622,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
         <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
           
           <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Elapsed</p>
-            <p className="text-lg md:text-xl font-mono text-white font-bold leading-none mt-0.5">{timerDisplay}</p>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                {timeLimit && timeLimit > 0 ? 'Time Remaining' : 'Time Elapsed'}
+            </p>
+            <p className={`text-lg md:text-xl font-mono font-bold leading-none mt-0.5 ${timeDanger ? 'text-rose-500 animate-pulse' : 'text-white'}`}>
+                {timerDisplay}
+            </p>
           </div>
 
           <div className="flex flex-col md:flex-row gap-2 pointer-events-auto">

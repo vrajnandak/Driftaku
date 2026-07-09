@@ -12,14 +12,14 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
   const [error, setError] = useState<string | null>(null);
   
   const [myTime, setMyTime] = useState<number | null>(null);
-  const [opponentTime, setOpponentTime] = useState<number | null>(null);
+  const [solveTimeLimit, setSolveTimeLimit] = useState<number | undefined>(undefined);
   const [matchResults, setMatchResults] = useState<any>(null);
 
   const { playerId } = getLocalPlayerId();
 
-  // 1. INITIALIZE & LOAD GRAPH
+  // 1. INITIALIZE, LOAD GRAPH, & GET TIME LIMIT
   useEffect(() => {
-    const loadGraph = () => {
+    const initMatch = async () => {
       const storedData = localStorage.getItem(`driftaku_solve_${roomId}`);
       
       if (!storedData) {
@@ -42,10 +42,17 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
         setIntendedPath(parsed.intendedPath || []); 
       } catch (err) {
         setError("Failed to parse opponent's graph.");
+        return;
+      }
+
+      // Fetch Time Limit from Room Config
+      const { data: roomData } = await supabase.from('rooms').select('config').eq('id', roomId).single();
+      if (roomData?.config?.solveTime && roomData.config.solveTime > 0) {
+          setSolveTimeLimit(roomData.config.solveTime);
       }
     };
 
-    loadGraph();
+    initMatch();
   }, [roomId]);
 
   // 2. REAL-TIME SUBSCRIPTION FOR RESULTS
@@ -70,7 +77,7 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
-  // 3. HANDLE WIN (Called by GameClient)
+  // 3. HANDLE WIN (Called by GameClient on success)
   const handleWin = async (finalTime: number) => {
       setMyTime(finalTime);
 
@@ -95,6 +102,13 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
               ownerId: room.owner_id
           });
       }
+  };
+
+  // 4. HANDLE TIMEOUT (Called by GameClient if time limit hits 0)
+  const handleTimeout = () => {
+      // Treat timeout as a "finish" with the maximum penalty time
+      const penaltyTime = solveTimeLimit || 9999;
+      handleWin(penaltyTime);
   };
 
   // Helper to clear stale game data when leaving
@@ -130,34 +144,38 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       const isWinner = myFinalTime < opponentFinalTime;
       const isTie = myFinalTime === opponentFinalTime;
 
+      // Check if times equal the DNF threshold
+      const iTimedOut = solveTimeLimit && myFinalTime >= solveTimeLimit;
+      const opponentTimedOut = solveTimeLimit && opponentFinalTime >= solveTimeLimit;
+
       return (
           <div className="flex items-center justify-center h-full bg-slate-950 p-6 font-sans">
               <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl relative overflow-hidden">
                   
                   {/* Decorative background glow based on win/loss */}
-                  <div className={`absolute -top-20 -left-20 w-40 h-40 blur-3xl rounded-full opacity-30 ${isWinner ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                  <div className={`absolute -top-20 -left-20 w-40 h-40 blur-3xl rounded-full opacity-30 ${isWinner ? 'bg-emerald-500' : isTie ? 'bg-amber-500' : 'bg-rose-500'}`}></div>
 
                   <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2 relative z-10">
                       {isTie ? 'Draw!' : isWinner ? 'Victory!' : 'Defeated!'}
                   </h1>
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-8 relative z-10">
-                      {isWinner ? 'You solved the web faster.' : 'Your opponent out-drifted you.'}
+                      {isTie ? (iTimedOut ? 'Both players ran out of time.' : 'Perfect tie.') : isWinner ? 'You solved the web faster.' : 'Your opponent out-drifted you.'}
                   </p>
 
                   <div className="space-y-4 mb-8 relative z-10">
                       {/* My Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${isWinner ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
                           <span className="font-bold text-white uppercase tracking-widest text-xs">You</span>
-                          <span className={`font-mono text-xl ${isWinner ? 'text-emerald-400 font-black' : 'text-slate-300'}`}>
-                              {myFinalTime.toFixed(2)}s
+                          <span className={`font-mono text-xl ${isWinner ? 'text-emerald-400 font-black' : iTimedOut ? 'text-rose-400 font-black' : 'text-slate-300'}`}>
+                              {iTimedOut ? 'DNF' : `${myFinalTime.toFixed(2)}s`}
                           </span>
                       </div>
 
                       {/* Opponent Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${!isWinner && !isTie ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
                           <span className="font-bold text-slate-300 uppercase tracking-widest text-xs">Opponent</span>
-                          <span className={`font-mono text-xl ${!isWinner && !isTie ? 'text-emerald-400 font-black' : 'text-slate-400'}`}>
-                              {opponentFinalTime.toFixed(2)}s
+                          <span className={`font-mono text-xl ${!isWinner && !isTie ? 'text-emerald-400 font-black' : opponentTimedOut ? 'text-rose-400 font-black' : 'text-slate-400'}`}>
+                              {opponentTimedOut ? 'DNF' : `${opponentFinalTime.toFixed(2)}s`}
                           </span>
                       </div>
                   </div>
@@ -173,13 +191,19 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       );
   }
 
-  // --- SHOW WAITING SCREEN IF I WON BUT OPPONENT IS STILL PLAYING ---
+  // --- SHOW WAITING SCREEN IF I WON OR TIMED OUT BUT OPPONENT IS STILL PLAYING ---
   if (myTime) {
+      const isTimeout = solveTimeLimit && myTime >= solveTimeLimit;
+
       return (
           <div className="flex items-center justify-center h-full bg-slate-950 p-6 font-sans">
               <div className="text-center">
-                  <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4">Web Solved!</h2>
-                  <p className="text-3xl font-mono text-emerald-400 mb-8 font-bold">{myTime.toFixed(2)}s</p>
+                  <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4">
+                      {isTimeout ? 'Time Up!' : 'Web Solved!'}
+                  </h2>
+                  <p className={`text-3xl font-mono mb-8 font-bold ${isTimeout ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {isTimeout ? 'DNF' : `${myTime.toFixed(2)}s`}
+                  </p>
                   
                   <div className="inline-flex items-center gap-3 bg-slate-900 border border-white/10 px-6 py-4 rounded-full shadow-xl">
                       <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -196,6 +220,8 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
           <GameClient 
               levelData={levelData} 
               intendedPath={intendedPath} 
+              timeLimit={solveTimeLimit}    
+              onTimeout={handleTimeout}
               onWin={handleWin} 
           />
       </div>
