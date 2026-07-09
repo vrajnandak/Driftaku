@@ -834,7 +834,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
           <div className="flex justify-between items-end">
             <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
-            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.config.maxNodes}</span>
+            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.nodes.length}</span>
           </div>
         </div>
         

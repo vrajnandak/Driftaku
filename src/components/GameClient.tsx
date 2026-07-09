@@ -473,7 +473,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, onWin }) => {
                   <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
                       <div>
                           <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
-                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</p>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes {levelData.nodes.length}</p>
                       </div>
                       <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
