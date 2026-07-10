@@ -7,10 +7,12 @@ import HowToPlay from '../components/HowToPlay.astro';
 import Hero from '../components/landing/Hero.astro';
 import GameModes from '../components/landing/GameModes.astro';
 import TutorialSection from '../components/landing/TutorialSection.astro';
-import SocialProof from '../components/landing/SocialProof.astro';
 import StrategyGuide from '../components/landing/StrategyGuide.astro';
 import EngineStats from '../components/landing/EngineStats.astro';
 import FAQ from '../components/landing/FAQ.astro';
+
+// NEW: Replaced SocialProof with RoadmapAndSupport
+import RoadmapAndSupport from '../components/landing/RoadmapAndSupport.astro';
 ---
 
 <Layout title="Driftaku | The Ultimate Anime Connection Puzzle Game">
@@ -38,10 +40,10 @@ import FAQ from '../components/landing/FAQ.astro';
 		<StrategyGuide />
         <EngineStats />
 
-
 		<FAQ />
 
-		<SocialProof players="12,842" modes="3" />
+        <!-- NEW COMPONENT PLACEMENT -->
+		<RoadmapAndSupport />
 
 	</main>
 </Layout>
