@@ -1,0 +1,65 @@
+---
+export const prerender = true;
+import Layout from '../layouts/Layout.astro';
+
+const lastUpdated = "July 10, 2026";
+---
+
+<Layout title="Terms of Service | Driftaku" description="The rules and guidelines for using and playing Driftaku.">
+    <main class="max-w-4xl mx-auto px-4 py-12 md:py-20 font-sans">
+        
+        <header class="mb-12 border-b border-white/10 pb-8">
+            <h1 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter mb-4">Terms of Service</h1>
+            <p class="text-slate-400 font-bold uppercase tracking-widest text-xs">Last Updated: {lastUpdated}</p>
+        </header>
+
+        <div class="space-y-8 text-slate-300 leading-relaxed text-sm md:text-base">
+            
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">1. Agreement to Terms</h2>
+                <p>By accessing or playing Driftaku (the "Site"), you agree to be bound by these Terms of Service. If you do not agree with all of these terms, you are prohibited from using the Site and must discontinue use immediately.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">2. Intellectual Property & Data Attribution</h2>
+                <p>Driftaku is a fan-made trivia and logic puzzle game. We do not claim ownership of the anime titles, characters, voice actors, studios, or images featured within the game.</p>
+                <ul class="list-disc list-inside space-y-2 text-slate-400 ml-4">
+                    <li><strong class="text-slate-200">AniList API:</strong> All metadata, connections, and promotional images utilized in our puzzles are sourced via the <a href="https://anilist.co/" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 underline">AniList GraphQL API</a>. All rights to the underlying data and images belong to their respective copyright holders.</li>
+                    <li><strong class="text-slate-200">Fair Use:</strong> The low-resolution thumbnail images are used strictly for educational, trivia, and identification purposes within the context of a transformative logic game under Fair Use guidelines.</li>
+                    <li><strong class="text-slate-200">Our Code:</strong> The Driftaku game engine, physics algorithms, and website code are our proprietary intellectual property.</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">3. User Conduct</h2>
+                <p>When using our multiplayer lobbies or posting to our Daily Leaderboards, you agree not to:</p>
+                <ul class="list-disc list-inside space-y-2 text-slate-400 ml-4">
+                    <li>Use offensive, discriminatory, or inappropriate display names.</li>
+                    <li>Attempt to exploit, hack, or manipulate the client-side timers or game logic to artificially inflate leaderboard scores. (We monitor solving times and reserve the right to remove illegitimate scores).</li>
+                    <li>Use automated scripts or bots to spam room creation or database requests.</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">4. Third-Party Advertisements</h2>
+                <p>The Site displays advertisements provided by Google AdSense to help cover server and development costs. We are not responsible for the content of these external advertisements or the products they promote. Clicking on an advertisement will direct you to a third-party website governed by its own Terms and Privacy Policy.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">5. Disclaimer of Warranties</h2>
+                <p>The Site and the game are provided on an "as-is" and "as-available" basis. We make no warranties that the site will be uninterrupted, error-free, or entirely secure. Connection puzzles are based on crowdsourced database information (AniList) and may occasionally contain inaccuracies regarding anime relations.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">6. Changes to Terms</h2>
+                <p>We reserve the right, in our sole discretion, to make changes or modifications to these Terms of Service at any time. It is your responsibility to periodically review these Terms to stay informed of updates.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">7. Contact Us</h2>
+                <p>If you have any questions or require support regarding these Terms, please contact us via our <a href="/contact" class="text-indigo-400 hover:text-indigo-300 underline font-bold">Contact Page</a>.</p>
+            </section>
+
+        </div>
+    </main>
+</Layout>

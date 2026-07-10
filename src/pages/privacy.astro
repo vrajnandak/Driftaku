@@ -1,0 +1,60 @@
+---
+export const prerender = true;
+import Layout from '../layouts/Layout.astro';
+
+const lastUpdated = "July 10, 2026";
+---
+
+<Layout title="Privacy Policy | Driftaku" description="Learn how Driftaku collects, uses, and protects your data.">
+    <main class="max-w-4xl mx-auto px-4 py-12 md:py-20 font-sans">
+        
+        <header class="mb-12 border-b border-white/10 pb-8">
+            <h1 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter mb-4">Privacy Policy</h1>
+            <p class="text-slate-400 font-bold uppercase tracking-widest text-xs">Last Updated: {lastUpdated}</p>
+        </header>
+
+        <div class="space-y-8 text-slate-300 leading-relaxed text-sm md:text-base">
+            
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">1. Introduction</h2>
+                <p>Welcome to Driftaku ("we," "our," or "us"). We are committed to protecting your personal information and your right to privacy. This Privacy Policy explains how we collect, use, and share your information when you visit our website (driftaku.com) and play our game.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">2. Information We Collect</h2>
+                <p>Driftaku is designed to collect as little personal data as possible. We do not require you to create an account or provide an email address to play.</p>
+                <ul class="list-disc list-inside space-y-2 text-slate-400 ml-4">
+                    <li><strong class="text-slate-200">Local Storage Data:</strong> We store your chosen "Display Name," best clear times, and temporary game data (like drafting pools) locally in your browser to ensure the game runs smoothly without requiring a login.</li>
+                    <li><strong class="text-slate-200">Multiplayer Data:</strong> When you join a "Vs Friends" lobby, your Display Name and randomly generated browser ID are temporarily stored in our database (Supabase) so you can connect with your friends.</li>
+                    <li><strong class="text-slate-200">Log and Usage Data:</strong> Like most websites, our servers (Cloudflare/Vercel) automatically collect basic diagnostic data such as your IP address, browser type, operating system, and the pages you visit.</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">3. Third-Party Advertisements (Google AdSense)</h2>
+                <p>We use Google AdSense to serve advertisements on Driftaku. Please be aware of the following:</p>
+                <ul class="list-disc list-inside space-y-2 text-slate-400 ml-4">
+                    <li>Third-party vendors, including Google, use cookies to serve ads based on your prior visits to our website or other websites.</li>
+                    <li>Google's use of advertising cookies enables it and its partners to serve ads to you based on your visit to our site and/or other sites on the Internet.</li>
+                    <li>You may opt out of personalized advertising by visiting <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 underline">Google's Ads Settings</a>.</li>
+                </ul>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">4. Cookies and Web Beacons</h2>
+                <p>We may use cookies, web beacons, tracking pixels, and other tracking technologies to help customize the Site and improve your experience. Most browsers are set to accept cookies by default. You can remove or reject cookies in your browser settings, but be aware that this may affect the functionality of our multiplayer lobbies and save-data features.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">5. Data Retention</h2>
+                <p>We only keep your multiplayer room data (including your Display Name and completion times) for as long as it is necessary for the game session. Database records for multiplayer rooms are routinely purged. Local records (like your Personal Bests) remain on your device until you clear your browser cache.</p>
+            </section>
+
+            <section class="space-y-4">
+                <h2 class="text-2xl font-bold text-white">6. Contact Us</h2>
+                <p>If you have questions or comments about this Privacy Policy, please reach out to us via our <a href="/contact" class="text-indigo-400 hover:text-indigo-300 underline font-bold">Contact Page</a>.</p>
+            </section>
+
+        </div>
+    </main>
+</Layout>
