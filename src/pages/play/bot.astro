@@ -1,23 +1,54 @@
-<!-- ---
+---
+export const prerender = false;
+
 import Layout from '../../layouts/Layout.astro';
-import GameClient from '../../components/GameClient.tsx';
-import MatchConfig from '../../components/MatchConfig.tsx';
+import BountyHuntClient from '../../components/game/BountyHuntClient.tsx';
+import { supabase } from '../../lib/supabase';
+import GameHeader from '../../components/game/GameHeader.astro';
+
+// Fetch a random drafting pool from Supabase
+const { data: pool, error } = await supabase
+    .from('draft_pools')
+    .select('nodes_data')
+    .limit(1)
+    .single();
+
+if (error || !pool) {
+    return Astro.redirect('/');
+}
+
+// Extract nodes and assign a Start and Target (Bot)
+const nodes = pool.nodes_data;
+const startNode = nodes[0];
+// Pick a target node that is far enough away in the array to guarantee a good chase
+const endNode = nodes[Math.floor(nodes.length / 2)];
+
+const levelData = {
+    metadata: {
+        start_node: startNode.id,
+        start_name: startNode.name,
+        end_node: endNode.id,
+        end_name: endNode.name,
+        total_nodes: nodes.length
+    },
+    nodes: nodes
+};
 ---
 
-<Layout title="Driftaku | Vs. The Bot">
-    <main class="max-w-7xl mx-auto p-4 md:p-8 flex flex-col lg:flex-row gap-8">
-        
-        Left: Canvas
-        <div class="flex-1 bg-slate-900 rounded-3xl border border-white/10 p-2 shadow-2xl h-[70vh]">
-            <div id="canvas-container" class="w-full h-full bg-black rounded-2xl relative">
-                Bot vs User status overlay goes here
-                <GameClient client:only="react" levelData={/* Generated Data */} />
-            </div>
-        </div>
+<Layout title="Bounty Hunt | Vs Bot | Driftaku" description="Catch the rogue node before it escapes across the anime multiverse!">
+    <main class="max-w-7xl mx-auto px-4 py-8 h-screen flex flex-col font-sans">
+        <div class="flex-1 bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative flex flex-col min-h-0">
+            
+            <GameHeader 
+                title="Bounty Hunt: Rogue Node"
+                startName={startNode.name}
+                endName="The Bot (Cyan)"
+            />
 
-        Right: Vertical Config Sidebar
-        <aside class="lg:w-80 space-y-6">
-            <MatchConfig client:load />
-        </aside>
+            <div class="flex-1 relative w-full bg-black min-h-0">
+                <BountyHuntClient client:only="react" levelData={levelData} />
+            </div>
+            
+        </div>
     </main>
-</Layout> -->
+</Layout>
