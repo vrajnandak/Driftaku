@@ -2,29 +2,27 @@
 const modes = [
     {
         title: "Daily Challenge",
-        desc: "Everyone plays the same web. Compete globally. Resets in 14h.",
+        desc: "Global daily web. Compete for the fastest time.",
         link: "/play/daily",
         color: "indigo",
-        active: true,
         gameStartDesc: "Play Now",
-        icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+        icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+        dynamicTimer: true
     },
     {
-        title: "Vs. The Bot",
-        desc: "Race against 'D-Force,' our AI pathfinder. Choose your difficulty and beat the clock.",
+        title: "Bounty Hunt",
+        desc: "Race our AI pathfinder. Catch the rogue node before it escapes.",
         link: "/play/bot",
         color: "slate",
-        active: true,
-        gameStartDesc: "Start Match",
+        gameStartDesc: "Start Chase",
         icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
     },
     {
         title: "Vs. Friends",
-        desc: "Create a private lobby. Build custom traps and race to solve each other's webs.",
+        desc: "Create a Private Lobby. Build custom traps and race to solve each other's webs.",
         link: "/play/friends",
         color: "emerald",
-        active: true,
-        gameStartDesc: "Invite Friends",
+        gameStartDesc: "Create Lobby",
         icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
     }
 ];
@@ -43,14 +41,12 @@ const modes = [
                 }
             `}
         >
-            <!-- Background Icon Decoration -->
             <div class="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 group-hover:scale-125 transition-all duration-700 pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-48 w-48" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={mode.icon} />
                 </svg>
             </div>
 
-            <!-- Content -->
             <div class={`
                 mb-6 p-4 rounded-2xl transition-colors duration-300
                 ${mode.color === 'indigo' ? 'bg-white/15 text-white' : 'bg-indigo-500/10 text-indigo-400'}
@@ -60,18 +56,26 @@ const modes = [
                 </svg>
             </div>
 
-            <h3 class="text-2xl font-black text-white mb-4 relative z-10 tracking-tight uppercase">
+            <h3 class="text-2xl font-black text-white mb-3 relative z-10 tracking-tight uppercase">
                 {mode.title}
             </h3>
             
             <p class={`
                 ${mode.color === 'indigo' ? 'text-indigo-100' : 'text-slate-400'} 
-                text-sm leading-relaxed relative z-10 mb-8 max-w-[260px]
+                text-sm leading-relaxed relative z-10 mb-4 max-w-[260px]
             `}>
                 {mode.desc}
             </p>
 
-            <!-- Push button to bottom -->
+            {mode.dynamicTimer && (
+                <div class="relative z-10 mb-8 bg-black/20 px-3 py-1 rounded-full border border-white/10">
+                    <p class="text-[10px] font-bold text-indigo-200 uppercase tracking-widest" id="daily-timer">
+                        Resets in --h --m
+                    </p>
+                </div>
+            )}
+            {!mode.dynamicTimer && <div class="mb-8"></div>}
+
             <div class="mt-auto relative z-10 w-full">
                 <div class={`
                     inline-flex items-center justify-center w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm tracking-wide transition-all
@@ -89,3 +93,28 @@ const modes = [
         </a>
     ))}
 </div>
+
+<script>
+    function updateDailyTimer() {
+        const timerEl = document.getElementById('daily-timer');
+        if (!timerEl) return;
+
+        const now = new Date();
+        // Convert current time to IST (UTC +5:30)
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffset);
+
+        // Find next midnight in IST
+        const nextMidnight = new Date(istNow);
+        nextMidnight.setHours(24, 0, 0, 0);
+
+        const diffMs = nextMidnight.getTime() - istNow.getTime();
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+        timerEl.innerText = `Resets in ${hours}h ${mins}m`;
+    }
+
+    updateDailyTimer();
+    setInterval(updateDailyTimer, 60000); // Update every minute
+</script>
