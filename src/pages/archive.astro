@@ -92,9 +92,7 @@ const hasActiveFilter = !!searchDate;
                 const endImg = getImageUrl(nodes, web.metadata.end_node);
                 
                 // Sort results by time to get the Top 3
-                const sortedResults = (web.results || [])
-                    .sort((a: any, b: any) => a.time - b.time)
-                    .slice(0, 3);
+                const sortedResults = (web.results || []).slice(0, 3);
                     
                 const bestTime = sortedResults.length > 0 ? sortedResults[0].time.toFixed(2) : '--';
 

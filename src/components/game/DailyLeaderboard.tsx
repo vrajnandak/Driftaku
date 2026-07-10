@@ -55,13 +55,13 @@ const DailyLeaderboard: React.FC<Props> = ({ initialResults, playDate }) => {
               key={idx} 
               className={`flex justify-between items-center p-3 rounded-xl border ${idx === 0 ? 'bg-amber-500/10 border-amber-500/30' : idx === 1 ? 'bg-slate-400/10 border-slate-400/30' : idx === 2 ? 'bg-amber-700/10 border-amber-700/30' : 'bg-slate-950 border-white/5'}`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <span className={`text-xs font-black ${idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-slate-500'}`}>
                   #{idx + 1}
                 </span>
-                <span className="text-xs font-bold text-white truncate max-w-[100px]">{entry.name}</span>
+                <span className="text-xs font-bold text-white truncate flex-1 min-w-0">{entry.name}</span>
               </div>
-              <span className={`font-mono text-sm font-black ${idx === 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+              <span className={`font-mono text-sm font-black shrink-0 ${idx === 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {entry.time.toFixed(2)}s
               </span>
             </div>
