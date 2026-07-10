@@ -82,9 +82,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       const vp = viewportRef.current;
       if (!vp) return;
       const currentTarget = targetZoomRef.current || vp.scale.x;
-      const target = direction === 'in' 
-        ? Math.min(currentTarget * 1.5, 3) 
-        : Math.max(currentTarget * 0.6, 0.2);
+      const target = direction === 'in' ? Math.min(currentTarget * 1.5, 3) : Math.max(currentTarget * 0.6, 0.2);
       targetZoomRef.current = target;
       vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
   };
@@ -229,7 +227,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       containerRef.current?.appendChild(app.canvas);
       appRef.current = app;
 
-      // GPU Cache Preloading
       const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
       if (imageUrls.length > 0) {
           try { await PIXI.Assets.load(imageUrls); } catch(e) { console.warn("Pixi GPU cache skip."); }
@@ -245,10 +242,9 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       viewport.on('zoomed', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      // ROBUST RESIZE OBSERVER
+      // FIXED: Remove app.resize() to stop it from fighting with PIXI's internal resizeTo observer
       resizeObserver = new ResizeObserver(() => {
-          if (app && viewportRef.current && containerRef.current) {
-              app.resize();
+          if (viewportRef.current && containerRef.current) {
               viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
           }
       });
@@ -261,9 +257,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       simulationRef.current = d3.forceSimulation<GameNode>([])
         .force("charge", d3.forceManyBody().strength(-800))
         .force("collide", d3.forceCollide().radius(80))
-        .force("center", d3.forceCenter(1000, 1000))
-        .force("x", d3.forceX(1000).strength(0.02))
-        .force("y", d3.forceY(1000).strength(0.02));
+        .force("center", d3.forceCenter(1000, 1000));
 
       app.ticker.add(() => {
         if (!linkLayerRef.current) return;
@@ -351,7 +345,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     });
   }, [workspace, userLinks]);
 
-  // --- NODE SPRITE LOGIC (FIXED DRAG) ---
+  // --- NODE SPRITE LOGIC ---
   const createNodeSprite = (node: GameNode): NodeVisuals => {
     const container = new PIXI.Container();
     const bg = new PIXI.Graphics();
@@ -391,7 +385,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           }
       }
       else if (currentTool === 'move') {
-          // ROBUST DOM MATH TO FIX NaN ISSUES
           const startX = e.global.x; 
           const startY = e.global.y;
           let hasDragged = false;
@@ -468,7 +461,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       {/* 1. START OVERLAY */}
       {!hasStarted && (
           <div className="absolute inset-0 z-[9999] bg-slate-950/90 flex flex-col items-center justify-center p-6">
-              <div className="max-w-md w-full bg-slate-900 border border-indigo-500/30 p-8 rounded-3xl text-center shadow-2xl transition-all">
+              <div className="max-w-md w-full bg-slate-900 border border-indigo-500/30 p-8 rounded-3xl text-center shadow-2xl animate-in fade-in zoom-in duration-300">
                   <div className="text-5xl mb-4">🤖</div>
                   <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Bounty Hunt</h2>
                   <p className="text-slate-400 text-sm mb-8 leading-relaxed">
@@ -528,7 +521,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
         <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
             <div>
-                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Intel Database</h2>
+                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic mb-4">Intel Database</h2>
             </div>
             <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
@@ -637,8 +630,8 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
             </div>
         )}
 
-        {/* CANVAS */}
-        <div ref={containerRef} className="w-full h-full pointer-events-auto" />
+        {/* CANVAS - Locked until started */}
+        <div ref={containerRef} className={`w-full h-full ${hasStarted ? 'pointer-events-auto' : 'pointer-events-none'}`} />
 
         {/* RETRACTION LIST */}
         {workspace.length > 0 && (
