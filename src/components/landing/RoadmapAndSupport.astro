@@ -5,57 +5,100 @@
     <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[100px] rounded-full pointer-events-none"></div>
     <div class="absolute bottom-0 left-0 w-64 h-64 bg-fuchsia-600/10 blur-[100px] rounded-full pointer-events-none"></div>
 
-    <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+    <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         
-        <!-- LEFT COLUMN: Roadmap -->
-        <div>
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 text-[10px] font-bold uppercase tracking-widest mb-6">
+        <!-- LEFT COLUMN: Scrollable Interactive Roadmap -->
+        <div class="flex flex-col h-full">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 text-[10px] font-bold uppercase tracking-widest mb-6 self-start">
                 <span class="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse"></span>
                 Active Development
             </div>
             
-            <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-8">What's Next?</h2>
+            <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-6">What's Next?</h2>
             
-            <div class="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-fuchsia-500 before:to-transparent md:before:hidden">
+            <!-- Interactive Scroll Container -->
+            <div id="roadmap-container" class="roadmap-mask max-h-[380px] overflow-y-auto roadmap-scrollbar snap-y snap-mandatory relative pl-2 pr-4 pb-20 pt-20">
                 
-                <!-- Feature 1 -->
-                <div class="relative flex items-center gap-6">
-                    <div class="w-10 h-10 rounded-full bg-slate-950 border-2 border-indigo-500 flex items-center justify-center text-indigo-400 shrink-0 z-10 shadow-[0_0_10px_rgba(99,102,241,0.3)]">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <!-- Vertical Line -->
+                <div class="absolute left-7 top-0 h-[800px] w-0.5 bg-gradient-to-b from-transparent via-indigo-500 to-transparent opacity-50 z-0"></div>
+
+                <div class="space-y-12">
+                    <!-- Feature 1 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">💡</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">In-Game Hints</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed transition-opacity">Use a lifeline to reveal a guaranteed next step in the path when you feel completely lost in the web.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="text-white font-bold text-lg mb-1">Global Seasons</h4>
-                        <p class="text-xs text-slate-400 leading-relaxed">Monthly leaderboard resets with unique flair badges for the top 10 fastest drifters.</p>
+
+                    <!-- Feature 2 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">🎛️</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">Strict Sandbox Filters</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">Friendly match rooms will explicitly fetch perfectly tailored node pools matching your exact era and popularity settings.</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">⚔️</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">Ranked Matchmaking</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">Skill-based automated matchmaking. Queue up for frantic 1v1 puzzle battles against random opponents worldwide.</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">📚</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">Manga & Authors Expansion</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">Introducing Mangakas and light novel properties into the database to massively expand the connection possibilities.</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 5 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">🌍</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">Global Seasons</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">Monthly leaderboard resets with unique, permanent flair badges awarded to the top 10 fastest drifters of the season.</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 6 -->
+                    <div class="roadmap-item snap-center relative flex items-center gap-6 z-10 transition-all duration-500 ease-out cursor-pointer">
+                        <div class="icon-ring w-12 h-12 rounded-full bg-slate-950 border-2 flex items-center justify-center shrink-0 transition-colors duration-500 shadow-lg">
+                            <span class="text-xl">✨</span>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg mb-1 transition-transform">Enhanced Anime World</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">A smarter, deeper recommendation engine to help you find exactly what to watch next based on complex graph overlap.</p>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Feature 2 -->
-                <div class="relative flex items-center gap-6">
-                    <div class="w-10 h-10 rounded-full bg-slate-950 border-2 border-fuchsia-500 flex items-center justify-center text-fuchsia-400 shrink-0 z-10 shadow-[0_0_10px_rgba(217,70,239,0.3)]">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                    </div>
-                    <div>
-                        <h4 class="text-white font-bold text-lg mb-1">Manga & Authors Expansion</h4>
-                        <p class="text-xs text-slate-400 leading-relaxed">Introducing Mangakas and light novel properties into the database to massively expand the web.</p>
-                    </div>
-                </div>
-
-                <!-- Feature 3 -->
-                <div class="relative flex items-center gap-6">
-                    <div class="w-10 h-10 rounded-full bg-slate-950 border-2 border-slate-700 flex items-center justify-center text-slate-500 shrink-0 z-10">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                    </div>
-                    <div>
-                        <h4 class="text-slate-300 font-bold text-lg mb-1">Ranked Matchmaking</h4>
-                        <p class="text-xs text-slate-500 leading-relaxed">Skill-based automated matchmaking for 1v1 puzzle battles against random opponents.</p>
-                    </div>
-                </div>
-
+            </div>
+            
+            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-widest text-center mt-2 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                Scroll to explore
             </div>
         </div>
 
         <!-- RIGHT COLUMN: Solo Dev Support Message -->
-        <div class="bg-slate-950/50 border border-indigo-500/30 p-8 rounded-3xl backdrop-blur-md shadow-inner">
+        <div class="bg-slate-950/50 border border-indigo-500/30 p-8 rounded-3xl backdrop-blur-md shadow-inner h-full flex flex-col justify-center">
             <h3 class="text-2xl font-black text-indigo-400 uppercase tracking-tighter mb-4">A Note From the Dev</h3>
             
             <div class="space-y-4 text-sm text-slate-300 leading-relaxed mb-8">
@@ -71,22 +114,22 @@
             </div>
 
             <ul class="space-y-3 mb-8">
-                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl">
+                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl hover:bg-slate-800 transition-colors">
                     <span class="text-xl">📅</span>
-                    <span class="text-xs font-bold text-white uppercase tracking-widest">Play the daily challenge once a week</span>
+                    <span class="text-[11px] font-bold text-white uppercase tracking-widest">Play the daily challenge once a week</span>
                 </li>
-                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl">
+                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl hover:bg-slate-800 transition-colors">
                     <span class="text-xl">⚔️</span>
-                    <span class="text-xs font-bold text-white uppercase tracking-widest">Trap your friends in a multiplayer lobby</span>
+                    <span class="text-[11px] font-bold text-white uppercase tracking-widest">Trap your friends in a multiplayer lobby</span>
                 </li>
-                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl">
+                <li class="flex items-center gap-3 bg-slate-900 border border-white/5 p-3 rounded-xl hover:bg-slate-800 transition-colors">
                     <span class="text-xl">🛡️</span>
-                    <span class="text-xs font-bold text-white uppercase tracking-widest">Whitelist this site on your ad-blocker</span>
+                    <span class="text-[11px] font-bold text-white uppercase tracking-widest">Whitelist this site on your ad-blocker</span>
                 </li>
             </ul>
 
-            <div class="flex gap-4">
-                <a href="/contact" class="flex-1 text-center bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-widest py-3.5 rounded-xl transition-colors border border-white/5">
+            <div class="flex gap-4 mt-auto">
+                <a href="/contact" class="flex-1 text-center bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-widest py-4 rounded-xl transition-all border border-white/5 hover:border-indigo-500/50 shadow-lg active:scale-95">
                     Send Feedback
                 </a>
             </div>
@@ -94,3 +137,88 @@
 
     </div>
 </section>
+
+<style>
+    /* CSS Mask to fade out the top and bottom of the scroll container */
+    .roadmap-mask {
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+    }
+
+    /* Custom Fun Scrollbar */
+    .roadmap-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .roadmap-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 10px;
+    }
+    .roadmap-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(99, 102, 241, 0.3);
+        border-radius: 10px;
+    }
+    .roadmap-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(217, 70, 239, 0.5); /* Fuchsia on hover */
+    }
+
+    /* Dynamic classes applied by JS IntersectionObserver */
+    .roadmap-item.active {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0px);
+    }
+    .roadmap-item.active .icon-ring {
+        border-color: #d946ef; /* fuchsia-500 */
+        box-shadow: 0 0 15px rgba(217, 70, 239, 0.4);
+    }
+    
+    .roadmap-item.inactive {
+        opacity: 0.3;
+        transform: scale(0.9);
+        filter: blur(1.5px);
+    }
+    .roadmap-item.inactive .icon-ring {
+        border-color: #334155; /* slate-700 */
+        box-shadow: none;
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const container = document.getElementById('roadmap-container');
+        const items = document.querySelectorAll('.roadmap-item');
+
+        if (!container || items.length === 0) return;
+
+        // Set up the Intersection Observer to detect which item is in the vertical center
+        const observerOptions = {
+            root: container,
+            // The negative root margins squeeze the "active" detection zone exactly to the middle 30% of the container
+            rootMargin: '-35% 0px -35% 0px',
+            threshold: 0
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                    entry.target.classList.remove('inactive');
+                } else {
+                    entry.target.classList.add('inactive');
+                    entry.target.classList.remove('active');
+                }
+            });
+        }, observerOptions);
+
+        items.forEach(item => {
+            // Set initial state
+            item.classList.add('inactive');
+            observer.observe(item);
+
+            // Add click-to-scroll functionality
+            item.addEventListener('click', () => {
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        });
+    });
+</script>
