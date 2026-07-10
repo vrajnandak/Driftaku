@@ -1,0 +1,154 @@
+---
+export const prerender = false;
+// Inform Cloudflare to hold onto this rendered page for a week (stale-while-revalidate handles background updates)
+Astro.response.headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800'); 
+
+import Layout from '../../layouts/Layout.astro';
+import AdUnit from '../../components/AdUnit.astro';
+import { getAnimeById, getSimilarAnime, resolveStudios, resolveCharacters, slugify } from '../../utils/animeDb';
+
+const { id: paramId } = Astro.params;
+
+// 1. Strict TypeScript check to prevent crashing if paramId is somehow undefined
+if (!paramId) {
+    return Astro.redirect('/anime-world');
+}
+
+// 2. Safely parse the ID
+const rawId = parseInt(paramId.split('-')[0], 10);
+
+// 3. Fetch data via our ultra-fast memory maps
+const targetAnime = getAnimeById(rawId);
+
+if (!targetAnime) {
+    return Astro.redirect('/anime-world');
+}
+
+// 4. Resolve the nested data safely
+const studios = resolveStudios(targetAnime.studios);
+const characters = resolveCharacters(targetAnime.characters);
+const recommendedAnime = getSimilarAnime(rawId);
+---
+
+<Layout 
+    title={`Anime like ${targetAnime.name} | Characters & Studios`} 
+    description={`Looking for good anime to watch? If you liked ${targetAnime.name}, explore its character cast, animation studios, and discover mathematically similar anime.`}
+>
+    <main class="max-w-6xl mx-auto px-4 py-8 md:py-12 font-sans">
+        
+        <!-- Breadcrumbs -->
+        <nav class="flex text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-8 items-center flex-wrap">
+            <a href="/" class="hover:text-indigo-400 transition-colors">Driftaku</a>
+            <span class="mx-2">/</span>
+            <a href="/anime-world" class="hover:text-fuchsia-400 transition-colors">Anime World</a>
+            <span class="mx-2">/</span>
+            <span class="text-white truncate max-w-[200px]">{targetAnime.name}</span>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            
+            <!-- LEFT COLUMN: ANIME PROFILE -->
+            <div class="lg:col-span-4 space-y-8 sticky top-24">
+                <div class="bg-slate-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
+                    <div class="aspect-[3/4] w-full bg-black relative">
+                        {targetAnime.image ? (
+                            <img src={targetAnime.image} alt={`${targetAnime.name} cover`} class="w-full h-full object-cover opacity-90" />
+                        ) : (
+                            <div class="w-full h-full flex items-center justify-center text-slate-700 font-bold uppercase tracking-widest text-xs">No Image</div>
+                        )}
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
+                    </div>
+                    
+                    <div class="p-6 relative z-10 -mt-10">
+                        <h1 class="text-2xl font-black text-white leading-tight mb-2 drop-shadow-md">{targetAnime.name}</h1>
+                        
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            {studios.map((s: any) => (
+                                <span class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
+                                    {s.name}
+                                </span>
+                            ))}
+                            <span class="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
+                                Anime
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <AdUnit type="inline" class="rounded-2xl hidden lg:flex" />
+            </div>
+
+            <!-- RIGHT COLUMN: CONTENT -->
+            <div class="lg:col-span-8 space-y-12">
+                
+                <!-- RECOMMENDATIONS -->
+                <section>
+                    <div class="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+                        <div class="w-8 h-8 rounded-full bg-fuchsia-500/20 flex items-center justify-center text-fuchsia-400 font-black shrink-0">!</div>
+                        <div>
+                            <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Anime Like {targetAnime.name}</h2>
+                            <p class="text-[10px] uppercase font-bold tracking-widest text-slate-500">Based on shared Voice Actors & Studios</p>
+                        </div>
+                    </div>
+
+                    {recommendedAnime.length > 0 ? (
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {recommendedAnime.map((anime: any) => (
+                                <a href={`/anime-world/${anime.id}-${slugify(anime.name)}`} class="group bg-slate-900 border border-white/5 rounded-xl p-3 flex gap-3 items-center hover:bg-slate-800 hover:border-fuchsia-500/30 transition-all">
+                                    <div class="w-12 h-16 rounded-md overflow-hidden bg-black shrink-0">
+                                        {anime.image ? (
+                                            <img src={anime.image} class="w-full h-full object-cover opacity-80 group-hover:opacity-100" loading="lazy" />
+                                        ) : (
+                                            <div class="w-full h-full bg-slate-800"></div>
+                                        )}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-white text-xs font-bold truncate leading-tight group-hover:text-fuchsia-400 transition-colors">{anime.name}</p>
+                                        <p class="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">View Matches</p>
+                                    </div>
+                                </a>
+                            ))}
+                        </div>
+                    ) : (
+                        <p class="text-slate-500 text-sm italic">No highly similar anime found in the database.</p>
+                    )}
+                </section>
+
+                <!-- CHARACTERS -->
+                <section>
+                    <div class="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+                        <div class="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 font-black shrink-0">C</div>
+                        <div>
+                            <h2 class="text-2xl font-black text-white uppercase tracking-tighter">{targetAnime.name} Characters</h2>
+                            <p class="text-[10px] uppercase font-bold tracking-widest text-slate-500">Key Cast Members</p>
+                        </div>
+                    </div>
+
+                    {characters.length > 0 ? (
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {characters.map((char: any) => (
+                                <div class="bg-slate-900 border border-white/5 rounded-xl p-3 flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full overflow-hidden bg-black shrink-0 border border-rose-500/30">
+                                        {char.image ? (
+                                            <img src={char.image} class="w-full h-full object-cover" loading="lazy" />
+                                        ) : (
+                                            <div class="w-full h-full bg-slate-800"></div>
+                                        )}
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-white text-[11px] font-bold truncate">{char.name}</p>
+                                        <p class="text-[8px] text-slate-500 font-black uppercase tracking-widest mt-0.5">Character</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p class="text-slate-500 text-sm italic">No character data available for this title.</p>
+                    )}
+                </section>
+
+                <AdUnit type="banner" class="rounded-2xl" />
+            </div>
+        </div>
+    </main>
+</Layout>

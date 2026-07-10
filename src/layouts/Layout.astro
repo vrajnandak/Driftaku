@@ -8,7 +8,8 @@ interface Props {
 
 const { 
 	title = "Driftaku | The Ultimate Anime Connection Challenge",
-	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Daily puzzles and anime wallpaper!" 
+	// Updated description to remove wallpaper and focus on the new Anime World SEO keywords
+	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Play daily puzzles and explore the Anime World!" 
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
@@ -41,13 +42,13 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 	<meta name="generator" content={Astro.generator} />
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700;900&display=swap" rel="stylesheet">
 </head>
 <body class="bg-slate-950 text-white font-['Lexend',sans-serif] min-h-screen flex flex-col">
 	
 	<!-- Responsive Navigation -->
 	<nav class="border-b border-white/10 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
-		<div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+		<div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
 			<!-- Logo -->
 			<a href="/" class="text-2xl font-black tracking-tighter text-indigo-400 relative z-50">
 				DRIFT<span class="text-white">AKU</span>
@@ -56,9 +57,9 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 			<!-- Desktop Menu -->
 			<div class="hidden md:flex items-center space-x-8 text-sm font-bold tracking-wide uppercase text-slate-300">
 				<a href="/archive" class="hover:text-indigo-400 transition-colors">Archive</a>
-				<a href="/wallpaper" class="hover:text-indigo-400 transition-colors">Wallpaper</a>
-				<a href="/leaderboard" class="hover:text-indigo-400 transition-colors">Leaderboard</a>
-				<a href="/how-to-play" class="hover:text-indigo-400 transition-colors">How to Play</a>
+				<a href="/anime-world" class="hover:text-fuchsia-400 transition-colors">Anime World</a>
+				<a href="/leaderboard" class="hover:text-amber-400 transition-colors">Leaderboard</a>
+				<a href="/how-to-play" class="hover:text-emerald-400 transition-colors">How to Play</a>
 			</div>
 			
 			<!-- Mobile Hamburger Button -->
@@ -73,11 +74,11 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 		</div>
 
 		<!-- Mobile Menu Dropdown -->
-		<div id="mobile-menu" class="fixed inset-x-0 top-0 pt-20 pb-6 px-4 bg-slate-900/95 backdrop-blur-xl border-b border-white/10 flex flex-col space-y-4 shadow-2xl transition-all duration-300 ease-in-out -translate-y-full opacity-0 pointer-events-none md:hidden z-40">
-			<a href="/archive" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Archive</a>
-			<a href="/wallpaper" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Anime Wallpaper</a>
-			<a href="/leaderboard" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Leaderboard</a>
-			<a href="/how-to-play" class="block px-4 py-3 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">How to Play</a>
+		<div id="mobile-menu" class="fixed inset-x-0 top-0 pt-20 pb-6 px-4 bg-slate-900/95 backdrop-blur-xl border-b border-white/10 flex flex-col space-y-3 shadow-2xl transition-all duration-300 ease-in-out -translate-y-full opacity-0 pointer-events-none md:hidden z-40">
+			<a href="/archive" class="block px-4 py-3.5 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors">Archive</a>
+			<a href="/anime-world" class="block px-4 py-3.5 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-fuchsia-600 hover:text-white transition-colors">Anime World</a>
+			<a href="/leaderboard" class="block px-4 py-3.5 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-amber-500 hover:text-white transition-colors">Leaderboard</a>
+			<a href="/how-to-play" class="block px-4 py-3.5 rounded-xl bg-slate-800/50 text-sm font-bold uppercase tracking-widest text-slate-200 hover:bg-emerald-600 hover:text-white transition-colors">How to Play</a>
 		</div>
 	</nav>
 
@@ -88,9 +89,12 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 
 	<!-- Responsive Footer -->
 	<footer class="border-t border-white/10 mt-auto py-8 bg-slate-900 z-10">
-		<div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-center md:text-left text-slate-400 text-sm gap-4">
+		<div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-center md:text-left text-slate-400 text-sm gap-6 md:gap-4">
 			<p>© {new Date().getFullYear()} Driftaku.com - Data provided by AniList.</p>
-			<div class="flex space-x-6 font-medium">
+			
+			<!-- Improved wrapping on mobile for footer links -->
+			<div class="flex flex-wrap justify-center gap-x-6 gap-y-3 font-medium uppercase tracking-widest text-[10px]">
+				<a href="/contact" class="hover:text-indigo-400 transition-colors">Contact</a>
 				<a href="/privacy" class="hover:text-indigo-400 transition-colors">Privacy Policy</a>
 				<a href="/terms" class="hover:text-indigo-400 transition-colors">Terms of Service</a>
 			</div>

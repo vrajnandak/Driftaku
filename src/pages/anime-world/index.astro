@@ -1,0 +1,73 @@
+---
+export const prerender = true;
+
+import Layout from '../../layouts/Layout.astro';
+import AdUnit from '../../components/AdUnit.astro';
+import { getTopAnime, slugify } from '../../utils/animeDb';
+
+const topAnime = getTopAnime();
+---
+
+<Layout title="Anime World | Best Anime to Watch | Driftaku" description="Explore the Anime World. Discover the best anime to watch and uncover hidden connections.">
+    <main class="max-w-7xl mx-auto px-4 py-12 md:py-16 font-sans">
+        
+        <header class="text-center mb-16 relative">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-fuchsia-500/20 blur-[100px] rounded-full -z-10"></div>
+            
+            <h1 class="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-6 drop-shadow-lg">
+                Explore the <span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-fuchsia-500">Anime World</span>
+            </h1>
+            <p class="text-slate-400 max-w-2xl mx-auto text-sm md:text-base leading-relaxed">
+                Looking for the <strong>best anime to watch</strong>? Driftaku's database maps tens of thousands of connections across the anime industry.
+            </p>
+        </header>
+
+        <AdUnit type="banner" class="mb-12 rounded-2xl hidden md:flex" />
+
+        <!-- Quick Links (SEO Bait) -->
+        <div class="flex flex-wrap justify-center gap-3 mb-16">
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2 mr-2">Trending:</span>
+            <a href="#top-rated" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Best Anime to Watch</a>
+            <a href="/anime-world/100101922-kimetsu-no-yaiba" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Demon Slayer</a>
+            <a href="/anime-world/100114065-jujutsu-kaisen" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Jujutsu Kaisen</a>
+            <a href="/anime-world/100001535-death-note" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Death Note</a>
+        </div>
+
+        <section id="top-rated" class="mb-20">
+            <div class="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-3xl font-black text-white uppercase tracking-tighter">Highly Connected Anime</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-fuchsia-400 mt-1">The Pillars of the Industry</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
+                {topAnime.map((anime: any) => (
+                    <a href={`/anime-world/${anime.id}-${slugify(anime.name)}`} class="group block relative bg-slate-900 rounded-2xl overflow-hidden border border-white/5 hover:border-fuchsia-500/50 transition-all hover:-translate-y-1 shadow-lg">
+                        <div class="aspect-[3/4] w-full bg-black relative">
+                            {anime.image ? (
+                                <img src={anime.image} alt={`${anime.name} Poster`} class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" loading="lazy" />
+                            ) : (
+                                <div class="w-full h-full flex items-center justify-center text-slate-700">No Image</div>
+                            )}
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 p-4">
+                            <h3 class="text-white font-bold text-sm truncate leading-tight group-hover:text-fuchsia-400 transition-colors">{anime.name}</h3>
+                            <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-1">{anime.link_count} Links</p>
+                        </div>
+                    </a>
+                ))}
+            </div>
+        </section>
+
+        <!-- CTA -> Redirects traffic back to the game -->
+        <div class="bg-gradient-to-br from-indigo-900 to-fuchsia-900 rounded-3xl p-8 md:p-12 text-center shadow-2xl border border-fuchsia-500/30">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tighter mb-4">Think you know Anime?</h2>
+            <p class="text-fuchsia-200 mb-8 max-w-2xl mx-auto">Test your knowledge of studios, voice actors, and characters in Driftaku, the ultimate anime logic puzzle. Play the daily challenge or trap your friends in custom webs.</p>
+            <a href="/play/daily" class="inline-block bg-white text-indigo-900 font-black uppercase tracking-widest px-8 py-4 rounded-xl shadow-lg hover:bg-fuchsia-100 hover:scale-105 transition-all text-sm">
+                Play Driftaku Now
+            </a>
+        </div>
+    </main>
+</Layout>

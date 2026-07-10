@@ -1,0 +1,138 @@
+---
+export const prerender = true; // Static page for instant loading
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Contact Us | Driftaku" description="Report bugs, suggest features, or get in touch with the Driftaku development team.">
+    <main class="max-w-6xl mx-auto px-4 py-12 md:py-20 font-sans">
+        
+        <!-- Header -->
+        <header class="text-center mb-16 relative">
+            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-indigo-500/10 blur-[80px] rounded-full -z-10"></div>
+            
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-6 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                Comms Channel
+            </span>
+            
+            <h1 class="text-5xl md:text-6xl font-black text-white uppercase tracking-tighter mb-4">Get in Touch</h1>
+            <p class="text-slate-400 max-w-lg mx-auto text-sm md:text-base">
+                Found a bug? Have a brilliant idea for a new feature? Or just want to talk about anime? Drop a message below.
+            </p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            
+            <!-- LEFT COLUMN: THE FORM -->
+            <div class="lg:col-span-7 bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                <div class="absolute -left-20 -top-20 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+                
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-6 relative z-10">Send a Transmission</h2>
+                
+                <!-- 
+                  WEB3FORMS INTEGRATION:
+                  1. Go to https://web3forms.com/
+                  2. Enter your email to get a free Access Key.
+                  3. Paste the Access Key in the hidden input below.
+                -->
+                <form action="https://api.web3forms.com/submit" method="POST" class="space-y-6 relative z-10">
+                    
+                    <!-- Replace with your Access Key -->
+                    <input type="hidden" name="access_key" value="703512cd-18c3-4cfd-8760-df286958f59c">
+                    <!-- Redirects user back to home after submitting -->
+                    <input type="hidden" name="redirect" value="https://driftaku.com/">
+                    <!-- Subject line of the email you receive -->
+                    <input type="hidden" name="subject" value="New Driftaku Comms Transmission!">
+                    <!-- Honeypot for spam bots -->
+                    <input type="checkbox" name="botcheck" class="hidden" style="display: none;">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Your Name</label>
+                            <input type="text" name="name" required placeholder="OtakuName123" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Contact Info (Email / Discord)</label>
+                            <input type="text" name="contact" required placeholder="name@email.com or DiscordTag" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Topic</label>
+                            <select name="topic" required class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors appearance-none cursor-pointer">
+                                <option value="Feature Request">💡 Feature Request</option>
+                                <option value="Bug Report">🐛 Bug Report</option>
+                                <option value="Data Issue">📊 Database/Node Issue</option>
+                                <option value="General Feedback">💬 General Feedback</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Where did this happen?</label>
+                            <select name="location" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors appearance-none cursor-pointer">
+                                <option value="Not Applicable">N/A</option>
+                                <option value="Daily Challenge">Daily Challenge</option>
+                                <option value="Archive">Archive</option>
+                                <option value="Leaderboard">Leaderboard</option>
+                                <option value="Vs Friends - Lobby">Vs Friends (Lobby)</option>
+                                <option value="Vs Friends - Builder">Vs Friends (Building phase)</option>
+                                <option value="Vs Friends - Solve">Vs Friends (Solve Phase)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Message Details</label>
+                        <textarea name="message" required rows="5" minlength="10" maxlength="1000" placeholder="Describe the issue, missing anime connection, or feature idea here..." class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors custom-scrollbar resize-y"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 text-sm">
+                        Transmit Message
+                    </button>
+                </form>
+            </div>
+
+            <!-- RIGHT COLUMN: INFO & FAQS -->
+            <div class="lg:col-span-5 space-y-8">
+                
+                <!-- Note to players -->
+                <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 md:p-8">
+                    <h3 class="text-lg font-black text-indigo-400 uppercase tracking-tighter mb-3">Solo Developer</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-0">
+                        Hey! Driftaku is built and maintained by a solo developer. I read every single message that comes through this channel. If you've found a bug or have an awesome idea to make the game better, let me know!
+                    </p>
+                </div>
+
+                <!-- Helpful Tips -->
+                <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 shadow-xl">
+                    <h3 class="text-sm font-black text-white uppercase tracking-widest mb-6 border-b border-white/10 pb-4">What helps me debug faster?</h3>
+                    
+                    <ul class="space-y-4">
+                        <li class="flex gap-4 items-start">
+                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">📱</div>
+                            <div>
+                                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Device & Browser</h4>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">Let me know if you are playing on an iPhone, Android, or PC, and whether you use Chrome, Safari, etc.</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start">
+                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">🔗</div>
+                            <div>
+                                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Missing Connections</h4>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">If you notice two nodes that <i>should</i> connect but don't, please provide the exact names of both nodes. (e.g., "Eren Yeager doesn't connect to Attack on Titan S3").</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start">
+                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">🤝</div>
+                            <div>
+                                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Multiplayer Errors</h4>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">If a "Vs Friends" match broke, try to include the Room Code (e.g., DRIFT7) in your message.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+</Layout>
