@@ -22,7 +22,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   // Bot Tracking
   const [targetNodeId, setTargetNodeId] = useState<number>(levelData.metadata.end_node);
   const [jumpsLeft, setJumpsLeft] = useState(10);
-  const [jumpTimer, setJumpTimer] = useState(5);
+  const [jumpTimer, setJumpTimer] = useState(10.0); // Now 10 seconds
 
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
   const [warehouse, setWarehouse] = useState<GameNode[]>([]);
@@ -65,6 +65,13 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     stateRef.current = { tool, targetNodeId, edgeSourceId, workspace, userLinks };
   }, [tool, targetNodeId, edgeSourceId, workspace, userLinks]);
 
+  // Responsive default: close sidebar on mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
+
   // --- FULLSCREEN & ZOOM HANDLERS ---
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -93,6 +100,21 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       targetZoomRef.current = 1; 
       vp.animate({ position: new PIXI.Point(1000, 1000), scale: 1, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
   };
+
+  const handleLocateNode = (nodeId: number) => {
+    const vp = viewportRef.current;
+    const node = stateRef.current.workspace.find(n => n.id === nodeId);
+    if(!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
+    const targetScale = 1.3;
+    targetZoomRef.current = targetScale;
+    vp.animate({ 
+        position: { x: node.x, y: node.y }, 
+        scale: targetScale, 
+        time: 500, 
+        ease: 'easeInOutCubic', 
+        removeOnInterrupt: true 
+    });
+  }
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -132,17 +154,20 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     return () => { isMounted = false; };
   }, [levelData]);
 
-  // --- BOT LOGIC (THE CHASE) ---
-  const botStateRef = useRef({ targetNodeId, jumpsLeft, warehouse });
+  // --- BOT LOGIC (THE CHASE - SMOOTH TIMER) ---
+  const botStateRef = useRef({ targetNodeId, jumpsLeft, workspace });
   useEffect(() => {
-      botStateRef.current = { targetNodeId, jumpsLeft, warehouse };
-  }, [targetNodeId, jumpsLeft, warehouse]);
+      botStateRef.current = { targetNodeId, jumpsLeft, workspace };
+  }, [targetNodeId, jumpsLeft, workspace]);
 
   useEffect(() => {
       if (!hasStarted || isWon || isLost) return;
 
+      const JUMP_TIME_MS = 10000; // 10 seconds
+      let lastJumpTime = Date.now();
+
       const executeBotJump = () => {
-          const { targetNodeId: currentTarget, jumpsLeft: currentJumps, warehouse: currentWarehouse } = botStateRef.current;
+          const { targetNodeId: currentTarget, jumpsLeft: currentJumps, workspace: currentWorkspace } = botStateRef.current;
           
           if (currentJumps <= 1) {
               setIsLost(true);
@@ -166,22 +191,27 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           setToastMsg(`Bot jumped to ${nextNode.name}!`);
           setTimeout(() => setToastMsg(null), 3000);
 
-          const inWarehouse = currentWarehouse.find(n => n.id === nextNodeId);
-          if (inWarehouse) {
-              setWorkspace(prev => [...prev, { ...inWarehouse, x: 1000 + (Math.random() * 200 - 100), y: 1000 + (Math.random() * 200 - 100), vx:0, vy:0 }]);
-              setWarehouse(prev => prev.filter(n => n.id !== nextNodeId));
+          // Deploy the node the bot jumped to if it isn't already on the canvas
+          const isAlreadyDeployed = currentWorkspace.some(n => n.id === nextNodeId);
+          if (!isAlreadyDeployed) {
+              setWorkspace(prev => [...prev, { ...nextNode, x: 1000 + (Math.random() * 200 - 100), y: 1000 + (Math.random() * 200 - 100), vx:0, vy:0 }]);
           }
       };
 
+      // 100ms interval for extremely smooth UI progress bars without high React overhead
       const interval = setInterval(() => {
-          setJumpTimer(prev => {
-              if (prev <= 1) {
-                  executeBotJump();
-                  return 5; 
-              }
-              return prev - 1;
-          });
-      }, 1000);
+          const now = Date.now();
+          const elapsed = now - lastJumpTime;
+          const remaining = Math.max(0, JUMP_TIME_MS - elapsed);
+          
+          if (remaining <= 0) {
+              executeBotJump();
+              lastJumpTime = Date.now(); // Reset baseline instantly
+              setJumpTimer(10.0);
+          } else {
+              setJumpTimer(remaining / 1000);
+          }
+      }, 100);
 
       return () => clearInterval(interval);
   }, [hasStarted, isWon, isLost, allNodesMap, levelData.metadata.start_node]);
@@ -242,7 +272,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       viewport.on('zoomed', () => { targetZoomRef.current = null; });
       viewportRef.current = viewport;
 
-      // FIXED: Remove app.resize() to stop it from fighting with PIXI's internal resizeTo observer
       resizeObserver = new ResizeObserver(() => {
           if (viewportRef.current && containerRef.current) {
               viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
@@ -300,6 +329,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
         });
       });
 
+      // Fixed: Keep all nodes (except start/end) permanently in the Warehouse list
       const start = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
       const end = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
       const others = levelData.nodes.filter(n => n.id !== start.id && n.id !== end.id);
@@ -436,7 +466,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
   const deployNode = (node: GameNode) => {
       setWorkspace(prev => [...prev, { ...node, x: 1000 + (Math.random() * 200 - 100), y: 1000 + (Math.random() * 200 - 100), vx: 0, vy: 0 }]);
-      setWarehouse(prev => prev.filter(n => n.id !== node.id));
   };
 
   const retractNode = (nodeId: number) => {
@@ -446,10 +475,11 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           return;
       }
       setWorkspace(prev => prev.filter(n => n.id !== nodeId));
-      setWarehouse(prev => [...prev, allNodesMap[nodeId]]);
       setUserLinks(prev => prev.filter(l => l.sourceId !== nodeId && l.targetId !== nodeId));
       if (edgeSourceId === nodeId) setEdgeSourceId(null);
   };
+
+  const isDeployed = (nodeId: number) => workspace.some(n => n.id === nodeId);
 
   const filteredNodes = warehouse.filter(n => 
     n.name.toLowerCase().includes(searchQuery.toLowerCase()) || (TYPE_MAP[n.type as keyof typeof TYPE_MAP] || "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -460,12 +490,12 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       
       {/* 1. START OVERLAY */}
       {!hasStarted && (
-          <div className="absolute inset-0 z-[9999] bg-slate-950/90 flex flex-col items-center justify-center p-6">
+          <div className="absolute inset-0 z-[9999] bg-slate-950/90 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
               <div className="max-w-md w-full bg-slate-900 border border-indigo-500/30 p-8 rounded-3xl text-center shadow-2xl animate-in fade-in zoom-in duration-300">
                   <div className="text-5xl mb-4">🤖</div>
                   <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Bounty Hunt</h2>
                   <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-                      The Rogue Node (Cyan) will jump to a new connection every 5 seconds. Build a bridge from the Start Node (White) to the Rogue Node to catch it before it escapes!
+                      The Rogue Node (Cyan) will jump to a new connection every <strong>10 seconds</strong>. Build a bridge from the Start Node (White) to the Rogue Node to catch it before it escapes!
                   </p>
                   
                   {!isReady ? (
@@ -493,7 +523,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       {/* 2. WIN/LOSS OVERLAYS */}
       {isWon && (
           <div className="absolute inset-0 z-[9999] bg-emerald-950/90 backdrop-blur-xl flex items-center justify-center p-6">
-              <div className="max-w-md w-full bg-slate-900 border border-emerald-500/50 p-8 rounded-3xl text-center shadow-2xl">
+              <div className="max-w-md w-full bg-slate-900 border border-emerald-500/50 p-8 rounded-3xl text-center shadow-2xl animate-in zoom-in">
                   <div className="text-6xl mb-4">🎯</div>
                   <h2 className="text-4xl font-black text-emerald-400 uppercase tracking-tighter mb-2">Bounty Captured!</h2>
                   <p className="text-slate-300 mb-8">You successfully intercepted the Rogue Node.</p>
@@ -506,7 +536,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
       {isLost && (
           <div className="absolute inset-0 z-[9999] bg-rose-950/90 backdrop-blur-xl flex items-center justify-center p-6">
-              <div className="max-w-md w-full bg-slate-900 border border-rose-500/50 p-8 rounded-3xl text-center shadow-2xl">
+              <div className="max-w-md w-full bg-slate-900 border border-rose-500/50 p-8 rounded-3xl text-center shadow-2xl animate-in zoom-in">
                   <div className="text-6xl mb-4">💨</div>
                   <h2 className="text-4xl font-black text-rose-400 uppercase tracking-tighter mb-2">Target Escaped</h2>
                   <p className="text-slate-300 mb-8">The Rogue Node made 10 jumps and vanished into the multiverse.</p>
@@ -517,40 +547,72 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           </div>
       )}
 
+      {/* MOBILE OVERLAY BACKDROP */}
+      <div className={`md:hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)} />
+
       {/* SIDEBAR WAREHOUSE */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-all duration-500 flex flex-col ${isSidebarOpen ? 'w-72 translate-x-0' : '-translate-x-full w-72'}`}>
-        <div className="p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
+      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col w-[85vw] max-w-[320px] md:w-72 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-4 md:p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
             <div>
-                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic mb-4">Intel Database</h2>
+                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Intel Database</h2>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Available Targets {warehouse.length}</p>
             </div>
-            <button onClick={toggleSidebar} className="text-slate-400 hover:text-white">
+            <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
             </button>
         </div>
-        <div className="p-3">
-            <input 
-              type="text" placeholder="Search anime, actors..." 
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
-            />
+        <div className="p-3 bg-slate-900/50">
+            <div className="relative">
+                <input 
+                  type="text" placeholder="Search anime, actors..." 
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
+                />
+                <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
+          {filteredNodes.length === 0 && <p className="text-slate-500 text-xs text-center mt-10">No records found.</p>}
           {filteredNodes.map(node => {
+            const deployed = isDeployed(node.id);
             const colorCode = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`;
             return (
-              <div key={node.id} onClick={() => deployNode(node)} className="w-full flex items-center justify-between p-2 rounded-xl transition-all border bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+              <div 
+                key={node.id} 
+                onClick={() => { if (!deployed) deployNode(node); }} 
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border cursor-pointer active:scale-95
+                  ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400'}`}
+              >
+                <div className="flex items-center gap-3 min-w-0 pr-2">
+                  <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
                     {node.image && <img src={node.image} className="w-full h-full object-cover" />}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
                     <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
                     <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorCode}}>
                         {TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown"}
                     </p>
                   </div>
                 </div>
+                {deployed && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleLocateNode(node.id); if(window.innerWidth<768) setIsSidebarOpen(false); }}
+                            className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                        >
+                            Locate
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                            className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                        >
+                            Retract
+                        </button>
+                    </div>
+                )}
               </div>
             )
           })}
@@ -570,19 +632,19 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       {/* MAIN CANVAS */}
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden">
         
-        {/* TOP STATUS BAR: THE CHASE */}
+        {/* TOP STATUS BAR: THE CHASE (SMOOTH GLIDE) */}
         <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800 z-30 overflow-hidden">
-            <div className="h-full bg-cyan-400 transition-all ease-linear" style={{ width: `${(jumpTimer / 5) * 100}%` }}></div>
+            <div className="h-full bg-cyan-400 transition-all duration-100 ease-linear" style={{ width: `${(jumpTimer / 10) * 100}%` }}></div>
         </div>
 
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex gap-4 pointer-events-none w-full max-w-sm justify-between px-4 sm:px-0 sm:left-auto sm:-translate-x-0 sm:right-6 sm:w-auto sm:justify-end">
             <div className="bg-slate-900/90 border border-cyan-500/30 px-4 py-2 rounded-2xl backdrop-blur-md shadow-2xl flex flex-col items-center flex-1 sm:flex-none">
                 <p className="text-[9px] uppercase font-bold tracking-widest text-cyan-400 mb-0.5">Bot Jumps</p>
-                <p className="text-2xl font-black text-white font-mono">{jumpTimer}s</p>
+                <p className="text-xl md:text-2xl font-black text-white font-mono">{jumpTimer.toFixed(1)}s</p>
             </div>
             <div className="bg-slate-900/90 border border-rose-500/30 px-4 py-2 rounded-2xl backdrop-blur-md shadow-2xl flex flex-col items-center flex-1 sm:flex-none">
                 <p className="text-[9px] uppercase font-bold tracking-widest text-rose-400 mb-0.5">Jumps Left</p>
-                <p className="text-2xl font-black text-white font-mono">{jumpsLeft}</p>
+                <p className="text-xl md:text-2xl font-black text-white font-mono">{jumpsLeft}</p>
             </div>
         </div>
 
@@ -618,14 +680,14 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
                 {isFullscreen ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
         </div>
 
         {/* NOTIFICATIONS */}
         {toastMsg && (
-            <div className="absolute top-24 sm:top-28 left-1/2 -translate-x-1/2 z-40 bg-slate-800 text-white px-6 py-3 rounded-full border border-white/20 shadow-2xl font-bold uppercase tracking-widest text-xs animate-bounce pointer-events-none">
+            <div className="absolute top-24 sm:top-28 left-1/2 -translate-x-1/2 z-40 bg-slate-800 text-white px-6 py-3 rounded-full border border-white/20 shadow-2xl font-bold uppercase tracking-widest text-[10px] sm:text-xs animate-in slide-in-from-top-4 duration-300 pointer-events-none">
                 {toastMsg}
             </div>
         )}
@@ -635,17 +697,17 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
         {/* RETRACTION LIST */}
         {workspace.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto">
+          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto" style={{ scrollbarWidth: 'none' }}>
               {workspace.map(node => (
-                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0">
-                      <div className="flex flex-col">
+                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleLocateNode(node.id)}>
+                      <div className="flex flex-col pointer-events-none">
                         <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
                         <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: levelData.metadata.start_node === node.id ? '#ffffff' : (targetNodeId === node.id ? '#22d3ee' : '#64748b')}}>
                             {levelData.metadata.start_node === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target (Bot)' : 'Node')}
                         </span>
                       </div>
                       <button 
-                          onClick={() => retractNode(node.id)}
+                          onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
                           className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
                       >
                           ×
@@ -657,9 +719,9 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
         {/* FLOATING INFO LABEL */}
         {activeInfo && (
-          <div className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200" style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}>
+          <div className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200 min-w-max" style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}>
             <p className="text-white font-bold text-xs">{activeInfo.name}</p>
-            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">{TYPE_MAP[activeInfo.type as keyof typeof TYPE_MAP]}</p>
+            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">{TYPE_MAP[activeInfo.type as keyof typeof TYPE_MAP] || "Unknown"}</p>
           </div>
         )}
 
