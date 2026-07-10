@@ -22,7 +22,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   // Bot Tracking
   const [targetNodeId, setTargetNodeId] = useState<number>(levelData.metadata.end_node);
   const [jumpsLeft, setJumpsLeft] = useState(10);
-  const [jumpTimer, setJumpTimer] = useState(10.0); // Now 10 seconds
+  const [jumpTimer, setJumpTimer] = useState(10.0);
 
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
   const [warehouse, setWarehouse] = useState<GameNode[]>([]);
@@ -154,7 +154,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     return () => { isMounted = false; };
   }, [levelData]);
 
-  // --- BOT LOGIC (THE CHASE - SMOOTH TIMER) ---
+  // --- BOT LOGIC (THE CHASE) ---
   const botStateRef = useRef({ targetNodeId, jumpsLeft, workspace });
   useEffect(() => {
       botStateRef.current = { targetNodeId, jumpsLeft, workspace };
@@ -163,7 +163,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   useEffect(() => {
       if (!hasStarted || isWon || isLost) return;
 
-      const JUMP_TIME_MS = 10000; // 10 seconds
+      const JUMP_TIME_MS = 10000; 
       let lastJumpTime = Date.now();
 
       const executeBotJump = () => {
@@ -191,14 +191,17 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           setToastMsg(`Bot jumped to ${nextNode.name}!`);
           setTimeout(() => setToastMsg(null), 3000);
 
-          // Deploy the node the bot jumped to if it isn't already on the canvas
           const isAlreadyDeployed = currentWorkspace.some(n => n.id === nextNodeId);
           if (!isAlreadyDeployed) {
-              setWorkspace(prev => [...prev, { ...nextNode, x: 1000 + (Math.random() * 200 - 100), y: 1000 + (Math.random() * 200 - 100), vx:0, vy:0 }]);
+              // OPTIMIZATION: Spawn the new node near the bot's PREVIOUS location instead of the center
+              const prevBotNode = currentWorkspace.find(n => n.id === currentTarget);
+              const spawnX = prevBotNode && prevBotNode.x != null ? prevBotNode.x + (Math.random() * 60 - 30) : 1000;
+              const spawnY = prevBotNode && prevBotNode.y != null ? prevBotNode.y + (Math.random() * 60 - 30) : 1000;
+
+              setWorkspace(prev => [...prev, { ...nextNode, x: spawnX, y: spawnY, vx:0, vy:0 }]);
           }
       };
 
-      // 100ms interval for extremely smooth UI progress bars without high React overhead
       const interval = setInterval(() => {
           const now = Date.now();
           const elapsed = now - lastJumpTime;
@@ -206,7 +209,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           
           if (remaining <= 0) {
               executeBotJump();
-              lastJumpTime = Date.now(); // Reset baseline instantly
+              lastJumpTime = Date.now(); 
               setJumpTimer(10.0);
           } else {
               setJumpTimer(remaining / 1000);
@@ -283,9 +286,12 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       nodeLayerRef.current = new PIXI.Container();
       viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
+      // OPTIMIZATION: Much gentler physics so nodes don't violently explode away
       simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-800))
-        .force("collide", d3.forceCollide().radius(80))
+        .force("charge", d3.forceManyBody().strength(-250)) // Much lower repulsion
+        .force("collide", d3.forceCollide().radius(60)) // Tighter collision bounding
+        .force("x", d3.forceX(1000).strength(0.04)) // Gentle gravity pulling inwards
+        .force("y", d3.forceY(1000).strength(0.04)) // Gentle gravity pulling inwards
         .force("center", d3.forceCenter(1000, 1000));
 
       app.ticker.add(() => {
@@ -329,7 +335,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
         });
       });
 
-      // Fixed: Keep all nodes (except start/end) permanently in the Warehouse list
       const start = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
       const end = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
       const others = levelData.nodes.filter(n => n.id !== start.id && n.id !== end.id);
@@ -348,14 +353,16 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     };
   }, []);
 
-  // --- SYNC WORKSPACE ---
+  // --- SYNC WORKSPACE (Soft Restarts) ---
   useEffect(() => {
     if (!simulationRef.current || !nodeLayerRef.current) return;
 
     const d3Links = userLinks.map(e => ({ source: e.sourceId, target: e.targetId }));
     simulationRef.current.nodes(workspace);
-    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
-    simulationRef.current.alpha(1).restart();
+    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(120)); // Tighter link distance
+    
+    // OPTIMIZATION: Start simulation at lower heat (0.3 instead of 1) so nodes gently shift rather than exploding
+    simulationRef.current.alpha(0.3).restart();
 
     workspace.forEach(node => {
       if (!spriteMap.current[node.id]) {
@@ -465,7 +472,15 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   };
 
   const deployNode = (node: GameNode) => {
-      setWorkspace(prev => [...prev, { ...node, x: 1000 + (Math.random() * 200 - 100), y: 1000 + (Math.random() * 200 - 100), vx: 0, vy: 0 }]);
+      // OPTIMIZATION: Spawn nodes at the center of the user's current Viewport camera, not fixed 1000x1000
+      let spawnX = 1000;
+      let spawnY = 1000;
+      if (viewportRef.current) {
+          const center = viewportRef.current.center;
+          spawnX = center.x + (Math.random() * 80 - 40);
+          spawnY = center.y + (Math.random() * 80 - 40);
+      }
+      setWorkspace(prev => [...prev, { ...node, x: spawnX, y: spawnY, vx: 0, vy: 0 }]);
   };
 
   const retractNode = (nodeId: number) => {
@@ -680,7 +695,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
                 {isFullscreen ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
         </div>
