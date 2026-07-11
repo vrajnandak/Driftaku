@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
-import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx'; // Import new component
+import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx';
 import GameHeader from '../../components/game/GameHeader.astro';
 import { supabase } from '../../lib/supabase';
 
@@ -13,6 +13,7 @@ const t0 = performance.now();
 const today = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata',
 }).format(new Date());
+
 // 2. Fetch directly from Supabase
 const { data: challenge, error } = await supabase
     .from('daily_challenges')
@@ -38,11 +39,115 @@ const initialResults = challenge.results || [];
 ---
 
 <Layout title={`Daily Web | Driftaku`}>
-    <main class="max-w-5xl mx-auto px-4 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+    <main class="max-w-7xl mx-auto px-4 py-8 font-sans">
+        
+        <!-- Header Context -->
+        <div class="mb-10 flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
+            <div>
+                <span class="inline-block px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-3 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                    Global Daily Challenge
+                </span>
+                <h1 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter">
+                    {challenge.metadata.title || "Today's Web"}
+                </h1>
+            </div>
+            <div class="text-left md:text-right">
+                <p class="text-[10px] uppercase font-bold tracking-widest text-slate-500">Date</p>
+                <p class="text-lg font-mono font-bold text-white">{today}</p>
+            </div>
+        </div>
+
+        <!-- HOW TO PLAY: VERTICAL MANUAL -->
+        <section class="mb-16 max-w-4xl mx-auto bg-slate-900/40 p-6 md:p-10 rounded-3xl border border-white/5">
+            <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-8 text-center border-b border-white/10 pb-4">How to Play</h2>
+            
+            <div class="space-y-12 text-slate-300 text-sm leading-relaxed">
+                
+                <!-- Topic 1 -->
+                <div class="flex flex-col md:flex-row gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-indigo-500 pl-6">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                            <span class="text-indigo-400">01. The Objective & Linking</span>
+                        </h3>
+                        <p class="mb-4">
+                            When the game begins, only the <strong>Start Node</strong> and <strong>Target Node</strong> will be visible on your canvas. Your goal is to forge a continuous path between them. 
+                        </p>
+                        <p>
+                            To do this, select other nodes from the sidebar (which can be clicked to hide) to deploy them. Then, equip the <strong>Link Tool</strong> and select two deployed nodes. If they share a connection in the database, an edge will form between them.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Link Tool Image]
+                    </div>
+                </div>
+
+                <!-- Topic 2 -->
+                <div class="flex flex-col md:flex-row-reverse gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-emerald-500 pl-6 md:border-l-0 md:border-r-2 md:pr-6 md:pl-0 md:text-right">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center md:justify-end gap-2">
+                            <span class="text-emerald-400">02. The Warehouse & Node Types</span>
+                        </h3>
+                        <p class="mb-4">
+                            There are 4 distinct types of nodes: <span class="text-[#818cf8] font-bold">Anime</span>, <span class="text-[#f43f5e] font-bold">Character</span>, <span class="text-[#10b981] font-bold">Studio</span>, and <span class="text-[#fbbf24] font-bold">Voice Actor</span>.
+                        </p>
+                        <p>
+                            If you can't find a particular node, just type its name into the sidebar search. You can even filter by category simply by typing words like <em>'anime'</em> or <em>'studio'</em>.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Warehouse Image]
+                    </div>
+                </div>
+
+                <!-- Topic 3 -->
+                <div class="flex flex-col md:flex-row gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-rose-500 pl-6">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                            <span class="text-rose-400">03. Navigation & Penalties</span>
+                        </h3>
+                        <p class="mb-4">
+                            As your web grows, the canvas will get cluttered. Use the <strong>Zoom</strong> buttons, <strong>Center Graph</strong> button, or toggle <strong>Fullscreen</strong> mode to manage your view. 
+                        </p>
+                        <p>
+                            Use <strong>Locate</strong> in the sidebar to pan the camera to a lost node, or <strong>Retract</strong> to pull a messy node off the board entirely. <br/><br/>
+                            <em>Need to identify a node?</em> Click on it in the canvas to reveal its name. But beware: <strong>this locks your camera for 3 seconds</strong>. (You can still click and reveal other nodes during this penalty window!).
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Penalty/UI Image]
+                    </div>
+                </div>
+
+                <!-- Topic 4 -->
+                <div class="flex flex-col md:flex-row-reverse gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-amber-500 pl-6 md:border-l-0 md:border-r-2 md:pr-6 md:pl-0 md:text-right">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center md:justify-end gap-2">
+                            <span class="text-amber-400">04. Hints & The Clock</span>
+                        </h3>
+                        <p class="mb-4">
+                            The timer is always running. Submit your path as quickly as you can to beat the world records!
+                        </p>
+                        <p>
+                            If you get stuck, you have exactly <strong>3 Hints</strong>. A hint will deploy the exact node you need to focus on to bridge the gap. If all necessary nodes are already deployed, the hint will highlight the exact edge you forgot to link.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Hint Image]
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- MAIN GAME & LEADERBOARD GRID -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start mb-16">
             
             <!-- GAME SECTION -->
-            <div class="lg:col-span-3 bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
+            <div class="lg:col-span-3 bg-slate-900 rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl relative">
                 <GameHeader 
                     title={challenge.metadata.title || "Daily Challenge"}
                     startName={challenge.metadata.start_name}
@@ -60,7 +165,7 @@ const initialResults = challenge.results || [];
             </div>
 
             <!-- LEADERBOARD SECTION -->
-            <div class="lg:col-span-1 h-full min-h-[400px]">
+            <div class="lg:col-span-1 h-[70vh] min-h-[600px]">
                 <DailyLeaderboard 
                     client:load 
                     initialResults={initialResults} 
@@ -69,21 +174,6 @@ const initialResults = challenge.results || [];
             </div>
             
         </div>
-        <!-- <div class="bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
-            <GameHeader 
-                title={challenge.metadata.title}
-                startName={challenge.metadata.start_name}
-                endName={challenge.metadata.end_name}
-            />
-
-            <div class="h-[70vh] min-h-[600px] w-full relative bg-black">
-                <DailyGameWrapper 
-                    client:only="react" 
-                    levelData={levelData} 
-                    intendedPath={challenge.intended_path}
-                    dbLoadTime = {dbLoadTimeMS}
-                />
-            </div>
-        </div> -->
+        
     </main>
 </Layout>
