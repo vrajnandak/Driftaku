@@ -150,7 +150,7 @@ import Layout from '../layouts/Layout.astro';
 
     if (form) {
         form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Prevent page reload
+            e.preventDefault(); 
 
             // UI Loading state
             submitBtn.disabled = true;
@@ -158,32 +158,33 @@ import Layout from '../layouts/Layout.astro';
             btnSpinner?.classList.remove('hidden');
             errorMessage?.classList.add('hidden');
 
+            // Convert FormData to a clean JSON object
             const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
 
             try {
-                // Send the data to our invisible Astro API Endpoint
+                // Send the data as JSON
                 const response = await fetch('/api/submit-contact', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json' // Explicitly set JSON header
+                    },
+                    body: JSON.stringify(payload) // Stringify payload
                 });
 
                 const result = await response.json();
 
                 if (result.success) {
-                    // Hide form, show success message
                     form.classList.add('hidden');
                     successState?.classList.remove('hidden');
                 } else {
-                    // Show error
                     if (errorText) errorText.innerText = result.error || "Failed to send message.";
                     errorMessage?.classList.remove('hidden');
                 }
             } catch (err) {
-                // Network error
-                if (errorText) errorText.innerText = "Network error. Please try again.";
+                if (errorText) errorText.innerText = "Failed to parse server response. Please try again.";
                 errorMessage?.classList.remove('hidden');
             } finally {
-                // Restore button state
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('opacity-70');
                 btnSpinner?.classList.add('hidden');

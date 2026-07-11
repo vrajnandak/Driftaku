@@ -1,30 +1,39 @@
-export const prerender = false; // This specific invisible route runs on the server
+export const prerender = false; // Runs dynamically on the server (Cloudflare Worker)
 
 import type { APIRoute } from 'astro';
 import { contact_supabase } from '../../lib/contactsupabase';
 
 export const POST: APIRoute = async ({ request }) => {
+  const jsonHeaders = { 'Content-Type': 'application/json' };
+
   try {
-    const data = await request.formData();
+    // 1. Parse JSON payload (Much more stable than FormData on Cloudflare)
+    const data = await request.json();
     
-    const botcheck = data.get("botcheck");
-    const name = data.get("name")?.toString().trim();
-    const contact_info = data.get("contact")?.toString().trim();
-    const topic = data.get("topic")?.toString();
-    const location = data.get("location")?.toString();
-    const message = data.get("message")?.toString().trim();
+    const botcheck = data.botcheck;
+    const name = data.name?.trim();
+    const contact_info = data.contact?.trim(); // Maps to name="contact" in HTML
+    const topic = data.topic;
+    const location = data.location;
+    const message = data.message?.trim();
 
-    // 1. Honeypot check (Bots get a fake success)
+    // 2. Honeypot check (Bots get a fake success)
     if (botcheck) {
-      return new Response(JSON.stringify({ success: true }), { status: 200 });
+      return new Response(JSON.stringify({ success: true }), { 
+        status: 200, 
+        headers: jsonHeaders 
+      });
     }
 
-    // 2. Validation
+    // 3. Validation
     if (!name || !contact_info || !message) {
-      return new Response(JSON.stringify({ success: false, error: "Missing fields" }), { status: 400 });
+      return new Response(JSON.stringify({ success: false, error: "Missing required fields" }), { 
+        status: 400, 
+        headers: jsonHeaders 
+      });
     }
 
-    // 3. Insert into Supabase
+    // 4. Insert into Supabase
     const { error } = await contact_supabase.from('contact_messages').insert({
       name,
       contact_info,
@@ -34,13 +43,24 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     if (error) {
-      return new Response(JSON.stringify({ success: false, error: "Database error" }), { status: 500 });
+      console.error("Supabase Insertion Error:", error);
+      return new Response(JSON.stringify({ success: false, error: "Database transmission failed" }), { 
+        status: 500, 
+        headers: jsonHeaders 
+      });
     }
 
-    // 4. Return actual success
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    // 5. Success Response
+    return new Response(JSON.stringify({ success: true }), { 
+      status: 200, 
+      headers: jsonHeaders 
+    });
 
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: "Server error" }), { status: 500 });
+    console.error("API Server Error:", error);
+    return new Response(JSON.stringify({ success: false, error: "Server communication error" }), { 
+      status: 500, 
+      headers: jsonHeaders 
+    });
   }
 };
