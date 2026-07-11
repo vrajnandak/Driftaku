@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
@@ -10,8 +10,8 @@ import { toast, ToastContainer } from './ui/Toast';
 interface Props {
   levelData: LevelData;
   intendedPath?: string[];
-  timeLimit?: number; // NEW: Optional time limit in seconds
-  onTimeout?: () => void; // NEW: Triggers when time runs out
+  timeLimit?: number; 
+  onTimeout?: () => void; 
   onWin: (time: number) => void;
 }
 
@@ -30,7 +30,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
   // Timer state
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
-  const [timeDanger, setTimeDanger] = useState(false); // NEW: Visual cue for low time
+  const [timeDanger, setTimeDanger] = useState(false); 
   const timerRef = useRef<number | null>(null);
 
   // React State
@@ -48,13 +48,30 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // --- HINT STATES ---
+  const [hintsLeft, setHintsLeft] = useState(3);
+  const [hintedNodeId, setHintedNodeId] = useState<number | null>(null);
+  const [hintedEdgeId, setHintedEdgeId] = useState<string | null>(null);
+
   const stateRef = useRef({
     workspaceNodes: [] as GameNode[],
     userLinks: [] as UserLink[],
     tool: 'select' as 'select' | 'link',
     selectedNodeId: null as number | null,
-    startTime: Date.now()
+    startTime: Date.now(),
+    hintedNodeId: null as number | null,
+    hintedEdgeId: null as string | null
   });
+
+  // Sync state ref
+  useEffect(() => {
+    stateRef.current.userLinks = userLinks;
+    stateRef.current.tool = tool;
+    stateRef.current.selectedNodeId = selectedNodeId;
+    stateRef.current.workspaceNodes = workspaceNodes;
+    stateRef.current.hintedNodeId = hintedNodeId;
+    stateRef.current.hintedEdgeId = hintedEdgeId;
+  }, [userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId]);
 
   // Responsive default: close sidebar on mobile initial load
   useEffect(() => {
@@ -174,10 +191,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         .force("x", d3.forceX(1000).strength(0.02))
         .force("y", d3.forceY(1000).strength(0.02));
 
-      app.ticker.add(() => {
+      app.ticker.add((ticker) => {
         if (!linkLayerRef.current) return;
         
         linkLayerRef.current.clear();
+        
+        // Draw User Links
         stateRef.current.userLinks.forEach(link => {
           const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
           const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
@@ -187,6 +206,19 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           }
         });
 
+        // Draw Hinted Edge Guide
+        if (stateRef.current.hintedEdgeId) {
+            const [uId, vId] = stateRef.current.hintedEdgeId.split('::').map(Number);
+            const s = stateRef.current.workspaceNodes.find(n => n.id === uId);
+            const t = stateRef.current.workspaceNodes.find(n => n.id === vId);
+            if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
+                const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; // Alpha 0.4 to 1.0
+                linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
+                  .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); // Amber/Gold Color
+            }
+        }
+
+        // Draw Nodes
         stateRef.current.workspaceNodes.forEach(node => {
           const vis = spriteMap.current[node.id];
           if(vis && node.x != null && node.y != null) {
@@ -196,6 +228,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             const isCurrent = stateRef.current.selectedNodeId === node.id;
             const isTarget = node.id === levelData.metadata.end_node;
             const isStart = node.id === levelData.metadata.start_node;
+            const isHinted = stateRef.current.hintedNodeId === node.id;
 
             let strokeColor = NODE_COLORS[node.type] || 0x334155;
             let strokeWidth = 2;
@@ -203,11 +236,15 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             if (isCurrent) {
                 strokeColor = 0xf59e0b;
                 strokeWidth = 6;
+            } else if (isHinted) {
+                const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5;
+                strokeColor = 0xf59e0b; // Gold Hint Color
+                strokeWidth = pulse;
             } else if (isStart) {
-                strokeColor = SPECIAL_NODE_COLORS.Start;
+                strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff;
                 strokeWidth = 5;
             } else if (isTarget) {
-                strokeColor = SPECIAL_NODE_COLORS.Target;
+                strokeColor = SPECIAL_NODE_COLORS.Target || 0x22d3ee;
                 strokeWidth = 5;
             }
 
@@ -263,12 +300,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     });
   }, [workspaceNodes, userLinks]);
 
-  useEffect(() => {
-    stateRef.current.userLinks = userLinks;
-    stateRef.current.tool = tool;
-    stateRef.current.selectedNodeId = selectedNodeId;
-  }, [userLinks, tool, selectedNodeId]);
-
   // --- 3. DYNAMIC TIMER (COUNTUP OR COUNTDOWN) ---
   useEffect(() => {
     if (isWon) {
@@ -282,7 +313,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       const elapsed = (Date.now() - stateRef.current.startTime) / 1000;
       
       if (timeLimit && timeLimit > 0) {
-          // COUNTDOWN MODE
           const remaining = Math.max(0, timeLimit - elapsed);
           const minutes = Math.floor(remaining / 60).toString().padStart(2, '0');
           const seconds = (remaining % 60).toFixed(1).padStart(4, '0');
@@ -295,7 +325,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
               if (onTimeout) onTimeout();
           }
       } else {
-          // COUNTUP MODE (Stopwatch)
           const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
           const seconds = (elapsed % 60).toFixed(1).padStart(4, '0');
           setTimerDisplay(`${minutes}:${seconds}`);
@@ -316,6 +345,10 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e) => {
+      // CLEAR HINTS UPON INTERACTION
+      setHintedNodeId(null);
+      setHintedEdgeId(null);
+
       if (stateRef.current.tool === 'link') {
         handleLinkAttempt(node.id);
       } else {
@@ -365,7 +398,79 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     return { container, bg, icon };
   };
 
-  // --- 4. HANDLERS ---
+  // --- 4. HINT ALGORITHM (FIXED: Frontier Logic & Edge Validation) ---
+  const handleRequestHint = () => {
+    if (hintsLeft <= 0 || !intendedPath || intendedPath.length === 0) {
+      toast("No hints available or path missing!", "warning");
+      return;
+    }
+
+    // 1. Map out all nodes that belong to the intended solution path
+    const allIntendedNodes = Array.from(new Set(intendedPath.flatMap(e => e.split('::').map(Number))));
+    allIntendedNodes.push(levelData.metadata.start_node, levelData.metadata.end_node);
+
+    // 2. CHECK 1: Is there a node we need that hasn't been deployed yet?
+    // We strictly find a missing node that connects to something *already* on the canvas to form a frontier.
+    const missingNodeId = allIntendedNodes.find(id => 
+        !workspaceNodes.some(n => n.id === id) &&
+        intendedPath.some(e => {
+            const [u, v] = e.split('::').map(Number);
+            return (u === id && workspaceNodes.some(n => n.id === v)) || 
+                   (v === id && workspaceNodes.some(n => n.id === u));
+        })
+    );
+
+    if (missingNodeId !== undefined) {
+        const nodeToDeploy = levelData.nodes.find(n => n.id === missingNodeId);
+        if (nodeToDeploy) {
+            deployNode(nodeToDeploy);
+            setHintedNodeId(missingNodeId);
+            setHintsLeft(prev => prev - 1);
+            // Delay pan slightly so D3 has time to spawn it
+            setTimeout(() => handleLocateNode(missingNodeId), 150);
+            return;
+        }
+    }
+
+    // 3. CHECK 2: All nodes deployed. Find an edge we missed!
+    // We only hint edges where BOTH nodes are currently deployed on the canvas.
+    const unlinkedEdge = intendedPath.find(edgeId => {
+        const [u, v] = edgeId.split('::').map(Number);
+        const bothDeployed = workspaceNodes.some(n => n.id === u) && workspaceNodes.some(n => n.id === v);
+        const isLinked = userLinks.some(l => 
+            (l.sourceId === u && l.targetId === v) || 
+            (l.sourceId === v && l.targetId === u)
+        );
+        return bothDeployed && !isLinked;
+    });
+
+    if (unlinkedEdge) {
+        setHintedEdgeId(unlinkedEdge);
+        setHintsLeft(prev => prev - 1);
+
+        const [uId, vId] = unlinkedEdge.split('::').map(Number);
+        const nodeA = workspaceNodes.find(n => n.id === uId);
+        const nodeB = workspaceNodes.find(n => n.id === vId);
+        
+        if (nodeA && nodeB && nodeA.x != null && nodeA.y != null && nodeB.x != null && nodeB.y != null) {
+            const centerX = (nodeA.x + nodeB.x) / 2;
+            const centerY = (nodeA.y + nodeB.y) / 2;
+            viewportRef.current?.animate({
+                position: { x: centerX, y: centerY },
+                scale: 1.2,
+                time: 500,
+                ease: 'easeInOutCubic',
+                removeOnInterrupt: true
+            });
+        }
+        return;
+    }
+
+    // Fallback
+    toast("You have deployed and linked all optimal nodes! Connect the final path to win.", "success");
+  };
+
+  // --- 5. HANDLERS ---
   const handleLinkAttempt = (targetId: number) => {
     const currentSelectedId = stateRef.current.selectedNodeId;
 
@@ -396,6 +501,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           const updatedLinks = [...stateRef.current.userLinks, newLink];
           setUserLinks(updatedLinks);
           checkWinCondition(updatedLinks);
+          setHintedEdgeId(null); // Clear hint visual when a successful link is made
         }
       } else {
         toast(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`, "warning");
@@ -437,7 +543,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         setTimerDisplay(finalTime.toFixed(1));
         setUiPath(path);
         setIsWon(true);
-        onWin(finalTime); // Keeps correctly returning elapsed time to parent
+        onWin(finalTime); 
         return;
       }
       
@@ -472,7 +578,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
   const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
 
-  // Helper method for rendering the core tools efficiently in Desktop/Mobile variants
   const renderToolbar = () => (
     <>
         <button 
@@ -495,6 +600,21 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         >
             ⓘ
         </button>
+        
+        {/* DYNAMIC HINT BUTTON */}
+        {intendedPath && intendedPath.length > 0 && (
+            <>
+                <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+                <button 
+                    onClick={handleRequestHint}
+                    disabled={hintsLeft <= 0}
+                    className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all 
+                      ${hintsLeft > 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+                >
+                    💡 Hint ({hintsLeft})
+                </button>
+            </>
+        )}
     </>
   );
 
@@ -540,7 +660,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
                             const query = searchQuery.toLowerCase();
                             const filteredNodes = warehouseNodes.filter(node => {
                                 const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "";
-                                return node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                return node.name.toLowerCase().includes(query) ||
                                 typeStr.toLowerCase().includes(query);
                             });
 
@@ -597,21 +717,21 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           )}
       </div>
 
-      {/* FIXED CANVAS WRAPPER */}
+      {/* SHOW BUTTON (Visible when sidebar is closed) */}
+      {!isSidebarOpen && (
+          <button 
+              onClick={toggleSidebar}
+              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
+          >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+          </button>
+      )}
+
+      {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
-
-        {/* TOGGLE SIDEBAR BUTTON */}
-        {!isSidebarOpen && (
-            <button 
-                onClick={toggleSidebar}
-                className="absolute top-4 left-4 md:top-6 md:left-6 z-30 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all pointer-events-auto active:scale-95"
-            >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-            </button>
-        )}
 
         {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">

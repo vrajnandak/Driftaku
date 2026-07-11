@@ -1046,6 +1046,10 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
               <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                   {workspace.map(node => (
                       <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
+                            <div 
+                                className="w-2 h-2 rounded-full flex-shrink-0" 
+                                style={{backgroundColor: `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`}} 
+                            />
                           <div className="flex flex-col pointer-events-none">
                             <span className="text-[11px] md:text-[12px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
                             <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>

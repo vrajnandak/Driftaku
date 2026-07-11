@@ -63,5 +63,6 @@ export const NODE_COLORS: Record<number, number> = {
 };
 export const SPECIAL_NODE_COLORS = {
   Start: 0xffffff,
-  Target: 0x22d3ee
+  Target: 0x22d3ee,
+  Hint: 0xf59e0b
 };
