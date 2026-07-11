@@ -1,5 +1,14 @@
 ---
-export const prerender = false;
+export const prerender = false; // Keep false to allow dynamic search
+
+// --- EDGE CACHING FOR CLOUDFLARE ---
+// This tells Cloudflare's CDN to cache this page for 1 hour (3600 seconds)
+// and serve stale cache for up to 10 minutes while it updates in the background.
+// This gives you pre-rendered static speeds with SSR flexibility.
+Astro.response.headers.set(
+  'Cache-Control', 
+  'public, max-age=60, s-maxage=3600, stale-while-revalidate=600'
+);
 
 import Layout from '../layouts/Layout.astro';
 import { supabase } from '../lib/supabase';
@@ -8,24 +17,47 @@ import { supabase } from '../lib/supabase';
 const searchDate = Astro.url.searchParams.get('date');
 const filterType = Astro.url.searchParams.get('type') || 'exact';
 
-// 2. Build Dynamic Query
+// 2. Get today's date in target timezone
+const today = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata',
+}).format(new Date());
+
+// 3. Build Dynamic Query with Strict Security
 let query = supabase
   .from('daily_challenges')
   .select('play_date, metadata, nodes_data, results')
+  .lte('play_date', today) // SECURITY: Never fetch records greater than today!
   .order('play_date', { ascending: false })
   .limit(30);
 
 if (searchDate) {
     if (filterType === 'exact') {
-        query = query.eq('play_date', searchDate);
+        // SECURITY: If they try to search a future date, force an empty query
+        if (searchDate <= today) {
+            query = query.eq('play_date', searchDate);
+        } else {
+            query = query.eq('play_date', '1970-01-01'); // Returns nothing
+        }
     } else if (filterType === 'before') {
-        query = query.lte('play_date', searchDate);
+        // SECURITY: Use the oldest of the searched date and today
+        const targetDate = searchDate < today ? searchDate : today;
+        query = query.lte('play_date', targetDate);
     }
 }
 
 const { data: pastWebs, error } = await query;
 
-// Helpers
+const formatPlayDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    }).format(date);
+};
+
 const getImageUrl = (nodes: any[], nodeId: number) => 
     nodes.find(n => n.id === nodeId)?.image;
 
@@ -51,13 +83,13 @@ const hasActiveFilter = !!searchDate;
                     </select>
                     <!-- Custom Arrow -->
                     <div class="absolute right-4 top-[2.1rem] pointer-events-none text-slate-500">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linjoin="round" stroke-width={2} d="M19 9l-7 7-7-7"></path></svg>
                     </div>
                 </div>
                 <div class="flex-1">
                     <label class="block text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1 pl-1">Target Date</label>
                     <!-- Dark mode calendar icon via [color-scheme:dark] -->
-                    <input type="date" name="date" value={searchDate || ''} required class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 [color-scheme:dark]" />
+                    <input type="date" name="date" max={today} value={searchDate || ''} required class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 [color-scheme:dark]" />
                 </div>
             </div>
             
@@ -77,7 +109,7 @@ const hasActiveFilter = !!searchDate;
         {pastWebs?.length === 0 && (
             <div class="text-center py-20 bg-slate-900/50 rounded-3xl border border-white/5 border-dashed">
                 <svg class="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                 </svg>
                 <h3 class="text-xl font-bold text-white mb-2">No Webs Found</h3>
                 <p class="text-slate-400">We couldn't find any challenges matching that date criteria.</p>
@@ -102,7 +134,7 @@ const hasActiveFilter = !!searchDate;
                         <!-- Top Bar -->
                         <div class="flex justify-between items-start mb-6">
                             <div>
-                                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">{web.play_date}</p>
+                                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">{formatPlayDate(web.play_date)}</p>
                                 <h3 class="text-lg font-black text-white tracking-tight leading-tight">{web.metadata.title}</h3>
                             </div>
                             <div class="bg-slate-950 border border-white/5 px-2 py-1 rounded-lg text-[10px] font-mono text-emerald-400 font-bold shrink-0 shadow-inner">
@@ -158,7 +190,6 @@ const hasActiveFilter = !!searchDate;
                         <div class="mt-auto">
                             <div class="flex justify-between text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">
                                 <span>Size: {nodes.length} Nodes</span>
-                                {/* <span>Path: {web.intended_path?.length || '?'} Edges</span> */}
                             </div>
 
                             <a href={`/play/daily/${web.play_date}`} class="block w-full py-4 bg-slate-800 group-hover:bg-indigo-600 text-white font-black uppercase tracking-widest text-center rounded-xl transition-all shadow-md group-hover:shadow-indigo-500/25 active:scale-95 text-xs">
