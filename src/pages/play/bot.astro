@@ -35,21 +35,114 @@ const levelData = {
 ---
 
 <Layout title="Bounty Hunt | Vs Bot | Driftaku" description="Catch the rogue node before it escapes across the anime multiverse!">
-    <!-- FIXED: Replaced max-w-7xl with w-full so the canvas breathes -->
-    <main class="w-full h-screen mx-auto px-2 py-4 sm:px-4 sm:py-6 flex flex-col font-sans">
-        <div class="flex-1 bg-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative flex flex-col min-h-0">
+    <main class="max-w-7xl mx-auto px-4 py-8 font-sans">
+        
+        <!-- Header Context -->
+        <div class="mb-10 flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
+            <div>
+                <span class="inline-block px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-widest mb-3 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                    Singleplayer Mode: Vs Bot
+                </span>
+                <h1 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter">
+                    Bounty Hunt
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Intercept the rogue AI node before it slips away into the depths of the database.</p>
+            </div>
+            <div class="text-left md:text-right">
+                <p class="text-[10px] uppercase font-bold tracking-widest text-slate-500">Total Nodes</p>
+                <p class="text-lg font-mono font-bold text-white">{nodes.length} Nodes Available</p>
+            </div>
+        </div>
+
+        <!-- BOUNTY HUNT MANUAL (TOP) -->
+        <section class="mb-16 max-w-4xl mx-auto bg-slate-900/40 p-6 md:p-10 rounded-3xl border border-white/5">
+            <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-8 text-center border-b border-white/10 pb-4">Tactical Manual</h2>
             
+            <div class="space-y-12 text-slate-300 text-sm leading-relaxed">
+                
+                <!-- Topic 1 -->
+                <div class="flex flex-col md:flex-row gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-cyan-500 pl-6">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                            <span class="text-cyan-400">01.</span> The Target (The Rogue Node)
+                        </h3>
+                        <p class="mb-4">
+                            The cyan node on your board is a **Rogue Node**. Unlike static puzzles, this node is alive and actively moving. 
+                        </p>
+                        <p>
+                            Every <strong>10 seconds</strong>, the top timer will hit zero, and the Rogue Node will make a jump to a random connected node in the database. You must trace its movements and build a path towards its current location.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-36 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Rogue Node Target Image]
+                    </div>
+                </div>
+
+                <!-- Topic 2 -->
+                <div class="flex flex-col md:flex-row-reverse gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-rose-500 pl-6 md:border-l-0 md:border-r-2 md:pr-6 md:pl-0 md:text-right">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center md:justify-end gap-2">
+                            <span class="text-rose-400">02.</span> The Escape Limit (10 Jumps)
+                        </h3>
+                        <p class="mb-4">
+                            You are racing against a strict limitation. The Rogue Node has exactly <strong>10 jumps</strong> before its quantum drive charges and it vanishes permanently into the multiverse.
+                        </p>
+                        <p>
+                            The "Jumps Left" counter in the top right tracks this limit. If the counter reaches zero before your links connect to the target, the connection is lost and you fail the hunt.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-36 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Jumps Counter Image]
+                    </div>
+                </div>
+
+                <!-- Topic 3 -->
+                <div class="flex flex-col md:flex-row gap-8 items-start">
+                    <div class="flex-1 border-l-2 border-emerald-500 pl-6">
+                        <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                            <span class="text-emerald-400">03.</span> Autoloading & Tracking
+                        </h3>
+                        <p class="mb-4">
+                            As the bot jumps, it might move to nodes that aren't on your board yet. Don't worry: the bot will **automatically deploy** any missing nodes it lands on for you.
+                        </p>
+                        <p>
+                            Use this to your advantage! The bot can inadvertently spawn "bridge" nodes on your canvas for free. If you ever lose track of where the bot just jumped, simply click on the <strong>Target Node</strong> in your bottom list to snap the camera to its position.
+                        </p>
+                    </div>
+                    <!-- Image Placeholder -->
+                    <div class="w-full md:w-64 h-36 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+                        [Locate & Deploy Image]
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- MAIN GAME CONTAINER (Changed flex-1 h-screen wrapper to h-[75vh] for scroll compliance) -->
+        <div class="bg-slate-900 rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl relative flex flex-col h-[75vh] min-h-[600px] z-10">
             <GameHeader 
                 title="Bounty Hunt: Rogue Node"
                 startName={startNode.name}
                 endName="The Bot (Cyan)"
             />
 
-            <!-- Main Client Area -->
             <div class="flex-1 relative w-full bg-black min-h-0">
                 <BountyHuntClient client:only="react" levelData={levelData} />
             </div>
-            
         </div>
+
     </main>
 </Layout>
+
+<style>
+    /* Prevent layout shifting from custom scrollbars on the retraction bar */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
