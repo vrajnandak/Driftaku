@@ -1,5 +1,6 @@
 ---
-export const prerender = true; // Static page for instant loading
+export const prerender = true; // 100% Static Page. Loads instantly!
+
 import Layout from '../layouts/Layout.astro';
 ---
 
@@ -28,22 +29,33 @@ import Layout from '../layouts/Layout.astro';
                 
                 <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-6 relative z-10">Send a Transmission</h2>
                 
-                <!-- 
-                  WEB3FORMS INTEGRATION:
-                  1. Go to https://web3forms.com/
-                  2. Enter your email to get a free Access Key.
-                  3. Paste the Access Key in the hidden input below.
-                -->
-                <form action="https://api.web3forms.com/submit" method="POST" class="space-y-6 relative z-10">
+                <!-- SUCCESS STATE (Hidden by default) -->
+                <div id="success-state" class="hidden relative z-10 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-black text-white uppercase tracking-tight mb-2">Message Received</h3>
+                    <p class="text-sm text-slate-400 mb-6">Thanks for reaching out! Your transmission has been successfully logged in the Driftaku database.</p>
+                    <a href="/" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-widest px-8 py-3 rounded-xl transition-all shadow-lg text-xs">
+                        Return Home
+                    </a>
+                </div>
+
+                <!-- FORM STATE -->
+                <form id="contact-form" class="space-y-6 relative z-10">
                     
-                    <!-- Replace with your Access Key -->
-                    <input type="hidden" name="access_key" value="703512cd-18c3-4cfd-8760-df286958f59c">
-                    <!-- Redirects user back to home after submitting -->
-                    <input type="hidden" name="redirect" value="https://driftaku.com/">
-                    <!-- Subject line of the email you receive -->
-                    <input type="hidden" name="subject" value="New Driftaku Comms Transmission!">
-                    <!-- Honeypot for spam bots -->
-                    <input type="checkbox" name="botcheck" class="hidden" style="display: none;">
+                    <!-- ERROR MESSAGE (Hidden by default) -->
+                    <div id="error-message" class="hidden bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl text-sm font-bold flex items-center gap-3">
+                        <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span id="error-text">Failed to send.</span>
+                    </div>
+
+                    <!-- Honeypot -->
+                    <div style="display: none;" aria-hidden="true">
+                        <input type="text" name="botcheck" tabindex="-1" autocomplete="off" />
+                    </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -51,8 +63,8 @@ import Layout from '../layouts/Layout.astro';
                             <input type="text" name="name" required placeholder="OtakuName123" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Contact Info (Email / Discord)</label>
-                            <input type="text" name="contact" required placeholder="name@email.com or DiscordTag" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Contact Info</label>
+                            <input type="text" name="contact" required placeholder="Email or Discord Tag" class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
                         </div>
                     </div>
 
@@ -62,7 +74,7 @@ import Layout from '../layouts/Layout.astro';
                             <select name="topic" required class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors appearance-none cursor-pointer">
                                 <option value="Feature Request">💡 Feature Request</option>
                                 <option value="Bug Report">🐛 Bug Report</option>
-                                <option value="Data Issue">📊 Database/Node Issue</option>
+                                <option value="Data Issue">📊 Database / Node Issue</option>
                                 <option value="General Feedback">💬 General Feedback</option>
                             </select>
                         </div>
@@ -85,17 +97,17 @@ import Layout from '../layouts/Layout.astro';
                         <textarea name="message" required rows="5" minlength="10" maxlength="1000" placeholder="Describe the issue, missing anime connection, or feature idea here..." class="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors custom-scrollbar resize-y"></textarea>
                     </div>
 
-                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 text-sm">
-                        Transmit Message
+                    <button id="submit-btn" type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 text-sm flex items-center justify-center gap-2">
+                        <span>Transmit Message</span>
+                        <div id="btn-spinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     </button>
                 </form>
             </div>
 
             <!-- RIGHT COLUMN: INFO & FAQS -->
             <div class="lg:col-span-5 space-y-8">
-                
                 <!-- Note to players -->
-                <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 md:p-8">
+                <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 md:p-8 shadow-inner">
                     <h3 class="text-lg font-black text-indigo-400 uppercase tracking-tighter mb-3">Solo Developer</h3>
                     <p class="text-sm text-slate-300 leading-relaxed mb-0">
                         Hey! Driftaku is built and maintained by a solo developer. I read every single message that comes through this channel. If you've found a bug or have an awesome idea to make the game better, let me know!
@@ -105,34 +117,77 @@ import Layout from '../layouts/Layout.astro';
                 <!-- Helpful Tips -->
                 <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 shadow-xl">
                     <h3 class="text-sm font-black text-white uppercase tracking-widest mb-6 border-b border-white/10 pb-4">What helps me debug faster?</h3>
-                    
                     <ul class="space-y-4">
                         <li class="flex gap-4 items-start">
-                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">📱</div>
+                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-inner">📱</div>
                             <div>
                                 <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Device & Browser</h4>
                                 <p class="text-[11px] text-slate-400 leading-relaxed">Let me know if you are playing on an iPhone, Android, or PC, and whether you use Chrome, Safari, etc.</p>
                             </div>
                         </li>
                         <li class="flex gap-4 items-start">
-                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">🔗</div>
+                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs shadow-inner">🔗</div>
                             <div>
                                 <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Missing Connections</h4>
-                                <p class="text-[11px] text-slate-400 leading-relaxed">If you notice two nodes that <i>should</i> connect but don't, please provide the exact names of both nodes. (e.g., "Eren Yeager doesn't connect to Attack on Titan S3").</p>
-                            </div>
-                        </li>
-                        <li class="flex gap-4 items-start">
-                            <div class="w-8 h-8 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center shrink-0 mt-0.5 text-xs">🤝</div>
-                            <div>
-                                <h4 class="text-white text-xs font-bold uppercase tracking-widest mb-1">Multiplayer Errors</h4>
-                                <p class="text-[11px] text-slate-400 leading-relaxed">If a "Vs Friends" match broke, try to include the Room Code (e.g., DRIFT7) in your message.</p>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">If you notice two nodes that <i>should</i> connect but don't, please provide the exact names of both nodes.</p>
                             </div>
                         </li>
                     </ul>
                 </div>
-
             </div>
-
         </div>
     </main>
 </Layout>
+
+<!-- CLIENT-SIDE FORM LOGIC -->
+<script>
+    const form = document.getElementById('contact-form') as HTMLFormElement;
+    const successState = document.getElementById('success-state');
+    const errorMessage = document.getElementById('error-message');
+    const errorText = document.getElementById('error-text');
+    const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+    const btnSpinner = document.getElementById('btn-spinner');
+
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent page reload
+
+            // UI Loading state
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-70');
+            btnSpinner?.classList.remove('hidden');
+            errorMessage?.classList.add('hidden');
+
+            const formData = new FormData(form);
+
+            try {
+                // Send the data to our invisible Astro API Endpoint
+                const response = await fetch('/api/submit-contact', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Hide form, show success message
+                    form.classList.add('hidden');
+                    successState?.classList.remove('hidden');
+                } else {
+                    // Show error
+                    if (errorText) errorText.innerText = result.error || "Failed to send message.";
+                    errorMessage?.classList.remove('hidden');
+                }
+            } catch (err) {
+                // Network error
+                if (errorText) errorText.innerText = "Network error. Please try again.";
+                errorMessage?.classList.remove('hidden');
+            } finally {
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-70');
+                btnSpinner?.classList.add('hidden');
+            }
+        });
+    }
+</script>
