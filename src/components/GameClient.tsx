@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
@@ -398,19 +398,16 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     return { container, bg, icon };
   };
 
-  // --- 4. HINT ALGORITHM (FIXED: Frontier Logic & Edge Validation) ---
+  // --- 4. HINT ALGORITHM ---
   const handleRequestHint = () => {
     if (hintsLeft <= 0 || !intendedPath || intendedPath.length === 0) {
       toast("No hints available or path missing!", "warning");
       return;
     }
 
-    // 1. Map out all nodes that belong to the intended solution path
     const allIntendedNodes = Array.from(new Set(intendedPath.flatMap(e => e.split('::').map(Number))));
     allIntendedNodes.push(levelData.metadata.start_node, levelData.metadata.end_node);
 
-    // 2. CHECK 1: Is there a node we need that hasn't been deployed yet?
-    // We strictly find a missing node that connects to something *already* on the canvas to form a frontier.
     const missingNodeId = allIntendedNodes.find(id => 
         !workspaceNodes.some(n => n.id === id) &&
         intendedPath.some(e => {
@@ -426,14 +423,11 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             deployNode(nodeToDeploy);
             setHintedNodeId(missingNodeId);
             setHintsLeft(prev => prev - 1);
-            // Delay pan slightly so D3 has time to spawn it
             setTimeout(() => handleLocateNode(missingNodeId), 150);
             return;
         }
     }
 
-    // 3. CHECK 2: All nodes deployed. Find an edge we missed!
-    // We only hint edges where BOTH nodes are currently deployed on the canvas.
     const unlinkedEdge = intendedPath.find(edgeId => {
         const [u, v] = edgeId.split('::').map(Number);
         const bothDeployed = workspaceNodes.some(n => n.id === u) && workspaceNodes.some(n => n.id === v);
@@ -466,7 +460,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         return;
     }
 
-    // Fallback
     toast("You have deployed and linked all optimal nodes! Connect the final path to win.", "success");
   };
 
@@ -578,25 +571,26 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
   const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
 
+  // Helper method for rendering the core tools safely
   const renderToolbar = () => (
     <>
         <button 
             onClick={() => {setTool('select'); stateRef.current.tool='select';}}
-            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
         >
             Move
         </button>
-        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
         <button 
             onClick={() => {setTool('link'); stateRef.current.tool='link';}}
-            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
         >
             Link {selectedNodeId && "(!)"}
         </button>
-        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+        <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
         <button 
             onClick={() => setIsLegendOpen(true)}
-            className="px-4 py-2.5 md:px-5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all flex-none"
+            className="px-4 py-2.5 md:px-5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all flex-none shrink-0"
         >
             ⓘ
         </button>
@@ -604,14 +598,14 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         {/* DYNAMIC HINT BUTTON */}
         {intendedPath && intendedPath.length > 0 && (
             <>
-                <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center" />
+                <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
                 <button 
                     onClick={handleRequestHint}
                     disabled={hintsLeft <= 0}
-                    className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all 
+                    className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0
                       ${hintsLeft > 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
                 >
-                    💡 Hint ({hintsLeft})
+                    💡 ({hintsLeft})
                 </button>
             </>
         )}
@@ -727,14 +721,15 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           </button>
       )}
 
-      {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
+      {/* FIXED CANVAS WRAPPER */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
 
         {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
-        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
+        {/* FIXED: w-max added so the background scales perfectly around buttons */}
+        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-max">
             {renderToolbar()}
         </div>
 
@@ -767,7 +762,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
                 {isFullscreen ? (
                     <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
           </div>
@@ -776,7 +771,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         {/* BOTTOM UI STACK */}
         <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none">
             
-            {/* Retraction Bar */}
+            {/* Retraction Bar (Locate Node onClick is intact) */}
             <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {workspaceNodes.map(node => (
                     <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
@@ -798,7 +793,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             </div>
 
             {/* MOBILE TOOLBAR (Hidden on Desktop) */}
-            <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto">
+            {/* FIXED: overflow-x-auto added so narrow phones don't squash buttons */}
+            <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {renderToolbar()}
             </div>
         </div>
