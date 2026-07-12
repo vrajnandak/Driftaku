@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import GameClient from './../GameClient';
+import type { LevelData } from '../../types/game';
 
 interface Props {
   roomId: string;
 }
 
 const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
-  const [levelData, setLevelData] = useState<any>(null);
+  const [levelData, setLevelData] = useState<LevelData | null>(null);
   const [intendedPath, setIntendedPath] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   
@@ -30,7 +31,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       try {
         const parsed = JSON.parse(storedData);
         
-        // Inject names for the GameClient Header
         const startNode = parsed.nodes.find((n: any) => n.id === parsed.metadata.start_node);
         const endNode = parsed.nodes.find((n: any) => n.id === parsed.metadata.end_node);
         
@@ -38,32 +38,46 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
         parsed.metadata.end_name = endNode?.name || 'Target';
         
         setLevelData(parsed);
-        // Extract intendedPath so the GameClient knows the exact edges required to win
         setIntendedPath(parsed.intendedPath || []); 
       } catch (err) {
         setError("Failed to parse opponent's graph.");
         return;
       }
 
-      // Fetch Time Limit from Room Config
-      const { data: roomData } = await supabase.from('rooms').select('config').eq('id', roomId).single();
+      // Fetch Time Limit & Safety check for page reloads
+      const { data: roomData } = await supabase.from('rooms').select('config, results, owner_id').eq('id', roomId).single();
+      
       if (roomData?.config?.solveTime && roomData.config.solveTime > 0) {
           setSolveTimeLimit(roomData.config.solveTime);
+      }
+
+      // If user reloaded the page after finishing, restore their state
+      if (roomData?.results) {
+          const isOwner = roomData.owner_id === playerId;
+          const role = isOwner ? 'owner' : 'guest';
+          
+          if (roomData.results.owner !== undefined && roomData.results.guest !== undefined) {
+              setMatchResults({
+                  ownerTime: roomData.results.owner,
+                  guestTime: roomData.results.guest,
+                  ownerId: roomData.owner_id
+              });
+          } else if (roomData.results[role] !== undefined) {
+              setMyTime(roomData.results[role]);
+          }
       }
     };
 
     initMatch();
-  }, [roomId]);
+  }, [roomId, playerId]);
 
   // 2. REAL-TIME SUBSCRIPTION FOR RESULTS
   useEffect(() => {
     const channel = supabase.channel(`room_${roomId}_solve`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
-          
           const results = payload.new.results;
           if (!results) return;
 
-          // Check if both players have finished
           if (results.owner !== undefined && results.guest !== undefined) {
               setMatchResults({
                   ownerTime: results.owner,
@@ -81,44 +95,42 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
   const handleWin = async (finalTime: number) => {
       setMyTime(finalTime);
 
-      // Identify if we are owner or guest
-      const { data: room } = await supabase.from('rooms').select('owner_id, results').eq('id', roomId).single();
+      const { data: room } = await supabase.from('rooms').select('owner_id').eq('id', roomId).single();
       if (!room) return;
 
       const isOwner = room.owner_id === playerId;
       const role = isOwner ? 'owner' : 'guest';
       
-      // Update results JSON in Supabase
-      const currentResults = room.results || {};
-      const updatedResults = { ...currentResults, [role]: finalTime };
+      // FIX: Use the secure RPC to prevent simultaneous timeout overwrites
+      await supabase.rpc('update_room_result', {
+          p_room_id: roomId,
+          p_role: role,
+          p_time: finalTime
+      });
 
-      await supabase.from('rooms').update({ results: updatedResults }).eq('id', roomId);
-
-      // If opponent already finished, we can set results immediately
-      if (updatedResults.owner !== undefined && updatedResults.guest !== undefined) {
+      // Instantly check if the other player is already done (fallback if Realtime event drops)
+      const { data: checkRoom } = await supabase.from('rooms').select('results, owner_id').eq('id', roomId).single();
+      if (checkRoom?.results?.owner !== undefined && checkRoom?.results?.guest !== undefined) {
           setMatchResults({
-              ownerTime: updatedResults.owner,
-              guestTime: updatedResults.guest,
-              ownerId: room.owner_id
+              ownerTime: checkRoom.results.owner,
+              guestTime: checkRoom.results.guest,
+              ownerId: checkRoom.owner_id
           });
       }
   };
 
-  // 4. HANDLE TIMEOUT (Called by GameClient if time limit hits 0)
+  // 4. HANDLE TIMEOUT
   const handleTimeout = () => {
-      // Treat timeout as a "finish" with the maximum penalty time
       const penaltyTime = solveTimeLimit || 9999;
       handleWin(penaltyTime);
   };
 
-  // Helper to clear stale game data when leaving
   const handleClearCacheAndLeave = () => {
       localStorage.removeItem(`driftaku_solve_${roomId}`);
       window.location.href = '/play/friends';
   };
 
   // --- RENDER STATES ---
-
   if (error) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-center p-6 bg-slate-950 font-sans">
@@ -144,7 +156,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       const isWinner = myFinalTime < opponentFinalTime;
       const isTie = myFinalTime === opponentFinalTime;
 
-      // Check if times equal the DNF threshold
       const iTimedOut = solveTimeLimit && myFinalTime >= solveTimeLimit;
       const opponentTimedOut = solveTimeLimit && opponentFinalTime >= solveTimeLimit;
 
@@ -152,7 +163,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
           <div className="flex items-center justify-center h-full bg-slate-950 p-6 font-sans">
               <div className="max-w-md w-full bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-2xl relative overflow-hidden">
                   
-                  {/* Decorative background glow based on win/loss */}
                   <div className={`absolute -top-20 -left-20 w-40 h-40 blur-3xl rounded-full opacity-30 ${isWinner ? 'bg-emerald-500' : isTie ? 'bg-amber-500' : 'bg-rose-500'}`}></div>
 
                   <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2 relative z-10">
@@ -163,7 +173,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
                   </p>
 
                   <div className="space-y-4 mb-8 relative z-10">
-                      {/* My Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${isWinner ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
                           <span className="font-bold text-white uppercase tracking-widest text-xs">You</span>
                           <span className={`font-mono text-xl ${isWinner ? 'text-emerald-400 font-black' : iTimedOut ? 'text-rose-400 font-black' : 'text-slate-300'}`}>
@@ -171,7 +180,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
                           </span>
                       </div>
 
-                      {/* Opponent Time */}
                       <div className={`flex justify-between items-center p-4 rounded-xl border ${!isWinner && !isTie ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-950 border-white/5'}`}>
                           <span className="font-bold text-slate-300 uppercase tracking-widest text-xs">Opponent</span>
                           <span className={`font-mono text-xl ${!isWinner && !isTie ? 'text-emerald-400 font-black' : opponentTimedOut ? 'text-rose-400 font-black' : 'text-slate-400'}`}>
