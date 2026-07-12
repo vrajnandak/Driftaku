@@ -571,7 +571,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
   const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
 
-  // Helper method for rendering the core tools safely
   const renderToolbar = () => (
     <>
         <button 
@@ -721,7 +720,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           </button>
       )}
 
-      {/* FIXED CANVAS WRAPPER */}
+      {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
@@ -762,16 +761,16 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
                 {isFullscreen ? (
                     <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
           </div>
         </div>
 
         {/* BOTTOM UI STACK */}
-        <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none">
+        <div className={`absolute bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
             
-            {/* Retraction Bar (Locate Node onClick is intact) */}
+            {/* Retraction Bar */}
             <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {workspaceNodes.map(node => (
                     <div key={node.id} className="flex-shrink-0 bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
@@ -793,7 +792,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             </div>
 
             {/* MOBILE TOOLBAR (Hidden on Desktop) */}
-            {/* FIXED: overflow-x-auto added so narrow phones don't squash buttons */}
             <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {renderToolbar()}
             </div>

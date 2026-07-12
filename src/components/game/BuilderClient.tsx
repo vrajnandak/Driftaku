@@ -1039,7 +1039,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         )}
 
         {/* BOTTOM UI STACK */}
-        <div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none">
+        <div className={`absolute left-4 bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
             
             {/* RETRACTION LIST */}
             {workspace.length > 0 && (
