@@ -193,7 +193,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
           const isAlreadyDeployed = currentWorkspace.some(n => n.id === nextNodeId);
           if (!isAlreadyDeployed) {
-              // OPTIMIZATION: Spawn the new node near the bot's PREVIOUS location instead of the center
               const prevBotNode = currentWorkspace.find(n => n.id === currentTarget);
               const spawnX = prevBotNode && prevBotNode.x != null ? prevBotNode.x + (Math.random() * 60 - 30) : 1000;
               const spawnY = prevBotNode && prevBotNode.y != null ? prevBotNode.y + (Math.random() * 60 - 30) : 1000;
@@ -286,12 +285,11 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       nodeLayerRef.current = new PIXI.Container();
       viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
-      // OPTIMIZATION: Much gentler physics so nodes don't violently explode away
       simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-250)) // Much lower repulsion
-        .force("collide", d3.forceCollide().radius(60)) // Tighter collision bounding
-        .force("x", d3.forceX(1000).strength(0.04)) // Gentle gravity pulling inwards
-        .force("y", d3.forceY(1000).strength(0.04)) // Gentle gravity pulling inwards
+        .force("charge", d3.forceManyBody().strength(-250)) 
+        .force("collide", d3.forceCollide().radius(60)) 
+        .force("x", d3.forceX(1000).strength(0.04)) 
+        .force("y", d3.forceY(1000).strength(0.04)) 
         .force("center", d3.forceCenter(1000, 1000));
 
       app.ticker.add(() => {
@@ -353,15 +351,14 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     };
   }, []);
 
-  // --- SYNC WORKSPACE (Soft Restarts) ---
+  // --- SYNC WORKSPACE ---
   useEffect(() => {
     if (!simulationRef.current || !nodeLayerRef.current) return;
 
     const d3Links = userLinks.map(e => ({ source: e.sourceId, target: e.targetId }));
     simulationRef.current.nodes(workspace);
-    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(120)); // Tighter link distance
+    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(120)); 
     
-    // OPTIMIZATION: Start simulation at lower heat (0.3 instead of 1) so nodes gently shift rather than exploding
     simulationRef.current.alpha(0.3).restart();
 
     workspace.forEach(node => {
@@ -472,7 +469,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   };
 
   const deployNode = (node: GameNode) => {
-      // OPTIMIZATION: Spawn nodes at the center of the user's current Viewport camera, not fixed 1000x1000
       let spawnX = 1000;
       let spawnY = 1000;
       if (viewportRef.current) {
@@ -647,7 +643,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       {/* MAIN CANVAS */}
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden">
         
-        {/* TOP STATUS BAR: THE CHASE (SMOOTH GLIDE) */}
+        {/* TOP STATUS BAR: THE CHASE */}
         <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800 z-30 overflow-hidden">
             <div className="h-full bg-cyan-400 transition-all duration-100 ease-linear" style={{ width: `${(jumpTimer / 10) * 100}%` }}></div>
         </div>
@@ -695,7 +691,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
                 {isFullscreen ? (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4m11 5l-5-5m0 0v4m0-4h4M9 15l-5 5m0 0v-4m0 4h4m11-5l-5 5m0 0v-4m0 4h4" /></svg>
                 ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l-5 5M4 16v4m0 0h-4m4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                 )}
             </button>
         </div>
@@ -711,26 +707,24 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
         <div ref={containerRef} className={`w-full h-full ${hasStarted ? 'pointer-events-auto' : 'pointer-events-none'}`} />
 
         {/* RETRACTION LIST */}
-        {workspace.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto" style={{ scrollbarWidth: 'none' }}>
-              {workspace.map(node => (
-                  <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleLocateNode(node.id)}>
-                      <div className="flex flex-col pointer-events-none">
-                        <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: levelData.metadata.start_node === node.id ? '#ffffff' : (targetNodeId === node.id ? '#22d3ee' : '#64748b')}}>
-                            {levelData.metadata.start_node === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target (Bot)' : 'Node')}
-                        </span>
-                      </div>
-                      <button 
-                          onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                          className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
-                      >
-                          ×
-                      </button>
-                  </div>
-              ))}
-          </div>
-        )}
+        <div className={`absolute bottom-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto transition-all duration-500 ${isSidebarOpen ? 'left-6 md:left-[19.5rem]' : 'left-6'}`} style={{ scrollbarWidth: 'none' }}>
+            {workspace.length > 0 && workspace.map(node => (
+                <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleLocateNode(node.id)}>
+                    <div className="flex flex-col pointer-events-none">
+                      <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
+                      <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: levelData.metadata.start_node === node.id ? '#ffffff' : (targetNodeId === node.id ? '#22d3ee' : '#64748b')}}>
+                          {levelData.metadata.start_node === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target (Bot)' : 'Node')}
+                      </span>
+                    </div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
+                        className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
+                    >
+                        ×
+                    </button>
+                </div>
+            ))}
+        </div>
 
         {/* FLOATING INFO LABEL */}
         {activeInfo && (
