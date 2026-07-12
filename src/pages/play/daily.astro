@@ -3,7 +3,7 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
-import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx';
+import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx'; // Import new component
 import GameHeader from '../../components/game/GameHeader.astro';
 import { supabase } from '../../lib/supabase';
 
@@ -45,7 +45,7 @@ if(initialResults && initialResults.length > 0) {
 ---
 
 <Layout title={`Daily Web | Driftaku`}>
-    <main class="max-w-7xl mx-auto px-4 py-8 font-sans">
+    <main class="max-w-7xl mx-auto px-4 py-8 font-sans relative">
         
         <!-- Header Context -->
         <div class="mb-10 flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
@@ -82,9 +82,16 @@ if(initialResults && initialResults.length > 0) {
                             To do this, select other nodes from the sidebar (which can be clicked to hide) to deploy them. Then, equip the <strong>Link Tool</strong> and select two deployed nodes. If they share a connection in the database, an edge will form between them.
                         </p>
                     </div>
-                    <!-- Image Placeholder -->
-                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
-                        [Link Tool Image]
+                    <!-- CSS IMAGE SLIDER 1 -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
+                        <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
+                            <img src="/DriftakuGame/daily_challenge_start_screen.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/GamePlay.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                            <img src="/DriftakuGame/VictoryModal.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
+                        </div>
+                        <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
+                        </div>
                     </div>
                 </div>
 
@@ -101,9 +108,17 @@ if(initialResults && initialResults.length > 0) {
                             If you can't find a particular node, just type its name into the sidebar search. You can even filter by category simply by typing words like <em>'anime'</em> or <em>'studio'</em>.
                         </p>
                     </div>
-                    <!-- Image Placeholder -->
-                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
-                        [Warehouse Image]
+                    <!-- CSS IMAGE SLIDER 2 -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
+                        <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
+                            <img src="/DriftakuGame/sidebar_search/anime_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/sidebar_search/character_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                            <img src="/DriftakuGame/sidebar_search/studio_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
+                            <img src="/DriftakuGame/sidebar_search/voice_actor_sidebar_search.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+4'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 4" />
+                        </div>
+                        <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
+                        </div>
                     </div>
                 </div>
 
@@ -121,9 +136,14 @@ if(initialResults && initialResults.length > 0) {
                             <em>Need to identify a node?</em> Click on it in the canvas to reveal its name. But beware: <strong>this locks your camera for 3 seconds</strong>. (You can still click and reveal other nodes during this penalty window!).
                         </p>
                     </div>
-                    <!-- Image Placeholder -->
-                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
-                        [Penalty/UI Image]
+                    <!-- CSS IMAGE SLIDER 3 -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
+                        <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
+                            <img src="/DriftakuGame/NavigationAndPenalties.png" onerror="this.src='https://placehold.co/400x300/0f172a/f43f5e?text=Nav+Tools'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                        </div>
+                        <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
+                        </div>
                     </div>
                 </div>
 
@@ -140,9 +160,15 @@ if(initialResults && initialResults.length > 0) {
                             If you get stuck, you have exactly <strong>3 Hints</strong>. A hint will deploy the exact node you need to focus on to bridge the gap. If all necessary nodes are already deployed, the hint will highlight the exact edge you forgot to link.
                         </p>
                     </div>
-                    <!-- Image Placeholder -->
-                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 flex items-center justify-center text-slate-600 text-xs font-bold uppercase tracking-widest">
-                        [Hint Image]
+                    <!-- CSS IMAGE SLIDER 4 -->
+                    <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
+                        <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
+                            <img src="/DriftakuGame/hint_usage/hint_edge_shown.png" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/hint_usage/hint_node_shown.png" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                        </div>
+                        <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
+                        </div>
                     </div>
                 </div>
 
@@ -182,5 +208,159 @@ if(initialResults && initialResults.length > 0) {
             
         </div>
         
+        <!-- IMAGE LIGHTBOX MODAL -->
+        <div id="image-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/95 backdrop-blur-sm p-4 md:p-8 opacity-0 transition-opacity duration-300">
+            <!-- Close Button -->
+            <button id="modal-close" class="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors z-[110]">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            
+            <!-- Prev Button -->
+            <button id="modal-prev" class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors z-[110]">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+            
+            <!-- Next Button -->
+            <button id="modal-next" class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors z-[110]">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+            
+            <!-- Image Content -->
+            <div class="relative w-full h-full max-w-7xl max-h-[90vh] flex items-center justify-center" id="modal-content-area">
+                <img id="modal-image" src="" alt="Enlarged view" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl drop-shadow-[0_0_25px_rgba(255,255,255,0.15)]" />
+            </div>
+        </div>
+
     </main>
 </Layout>
+
+<script>
+    // Wait for the DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('image-modal');
+        const modalImg = document.getElementById('modal-image') as HTMLImageElement;
+        const closeBtn = document.getElementById('modal-close');
+        const prevBtn = document.getElementById('modal-prev');
+        const nextBtn = document.getElementById('modal-next');
+        const modalContentArea = document.getElementById('modal-content-area');
+
+        let currentGalleryImages: string[] = [];
+        let currentIndex = 0;
+
+        // Find all the gallery containers we just tagged
+        const galleries = document.querySelectorAll('.gallery-container');
+
+        galleries.forEach(gallery => {
+            const images = gallery.querySelectorAll('img');
+            
+            images.forEach((img, index) => {
+                img.addEventListener('click', () => {
+                    // Extract the sources of all images inside THIS specific gallery
+                    currentGalleryImages = Array.from(images).map(i => i.src);
+                    currentIndex = index;
+                    showModal();
+                });
+            });
+        });
+
+        function showModal() {
+            modalImg.src = currentGalleryImages[currentIndex];
+            
+            // Hide navigation arrows if the gallery only has 1 image (Topic 3)
+            if(currentGalleryImages.length <= 1) {
+                if(prevBtn) prevBtn.style.display = 'none';
+                if(nextBtn) nextBtn.style.display = 'none';
+            } else {
+                if(prevBtn) prevBtn.style.display = 'block';
+                if(nextBtn) nextBtn.style.display = 'block';
+            }
+
+            if(modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                
+                // Slight timeout to allow the transition to happen smoothly
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.classList.add('opacity-100');
+                }, 10);
+            }
+            document.body.style.overflow = 'hidden'; // Lock background scrolling
+        }
+
+        function hideModal() {
+            if(modal) {
+                modal.classList.remove('opacity-100');
+                modal.classList.add('opacity-0');
+                
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300); // Wait for opacity transition to finish
+            }
+            document.body.style.overflow = ''; // Unlock background scrolling
+        }
+
+        function showNext(e?: Event) {
+            if(e) e.stopPropagation();
+            // This modulo math loops the array (clicks Right on the last image -> goes to 0)
+            currentIndex = (currentIndex + 1) % currentGalleryImages.length;
+            modalImg.src = currentGalleryImages[currentIndex];
+        }
+
+        function showPrev(e?: Event) {
+            if(e) e.stopPropagation();
+            // This loops the array backwards (clicks Left on 0 -> goes to the last image)
+            currentIndex = (currentIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+            modalImg.src = currentGalleryImages[currentIndex];
+        }
+
+        // Event Listeners
+        closeBtn?.addEventListener('click', hideModal);
+        nextBtn?.addEventListener('click', showNext);
+        prevBtn?.addEventListener('click', showPrev);
+
+        // Click on the empty background space to close
+        modal?.addEventListener('click', (e) => {
+            if (e.target === modal || e.target === modalContentArea) {
+                hideModal();
+            }
+        });
+
+        // Keyboard Controls
+        document.addEventListener('keydown', (e) => {
+            if (modal && !modal.classList.contains('hidden')) {
+                if (e.key === 'Escape') hideModal();
+                if (e.key === 'ArrowRight' && currentGalleryImages.length > 1) showNext();
+                if (e.key === 'ArrowLeft' && currentGalleryImages.length > 1) showPrev();
+            }
+        });
+    });
+</script>
+
+<style>
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+
+    /* Custom bounce animation for horizontal scrolling hint */
+    @keyframes bounce-x {
+        0%, 100% {
+            transform: translateX(0);
+            animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+        }
+        50% {
+            transform: translateX(-25%);
+            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+        }
+    }
+    .animate-bounce-x {
+        animation: bounce-x 1s infinite;
+    }
+</style>
