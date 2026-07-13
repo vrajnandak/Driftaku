@@ -7,6 +7,8 @@ import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 import { toast, ToastContainer } from './ui/Toast';
 import { useSidebar } from '../hooks/useSidebar';
+import { useFullscreen } from '../hooks/useFullscreen';
+import { useViewportControls } from '../hooks/useViewportControls';
 import { SharedSidebar } from './SharedSidebar';
 import { SharedWorkspaceSlider } from './SharedWorkspaceSlider';
 import { SharedCanvasControls } from './SharedCanvasControls';
@@ -23,8 +25,9 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
-  // Custom Sidebar Hook
+  // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+  const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
 
   // Pixi/D3 Refs
   const appRef = useRef<PIXI.Application | null>(null);
@@ -33,7 +36,9 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const spriteMap = useRef<Record<number, NodeVisuals>>({});
   const nodeLayerRef = useRef<PIXI.Container | null>(null);
   const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-  const targetZoomRef = useRef<number | null>(null);
+
+  // Viewport Controls Hook
+  const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
   // Timer state
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
@@ -50,8 +55,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
   const [uiPath, setUiPath] = useState<number[]>([levelData.metadata.start_node]);
-  
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // --- HINT STATES ---
   const [hintsLeft, setHintsLeft] = useState(3);
@@ -78,194 +81,183 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     stateRef.current.hintedEdgeId = hintedEdgeId;
   }, [userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId]);
 
-  // --- FULLSCREEN HANDLER ---
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      mainContainerRef.current?.requestFullscreen().catch((err) => {toast(err instanceof Error ? err.message : "Something went wrong", "error");});
-    } else document.exitFullscreen();
-  };
-
-  // --- SMOOTH ZOOM & CENTER LOGIC ---
-  const handleZoom = (direction: 'in' | 'out') => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      const currentTarget = targetZoomRef.current || vp.scale.x;
-      const target = direction === 'in' 
-        ? Math.min(currentTarget * 1.5, 3) 
-        : Math.max(currentTarget * 0.6, 0.2);
-      
-      targetZoomRef.current = target;
-      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
-  const handleCenterView = () => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      
-      targetZoomRef.current = 1; 
-      vp.animate({
-          position: { x: 1000, y: 1000},
-          scale: 1,
-          time: 400,
-          ease: 'easeOutQuart',
-          removeOnInterrupt: true
-      });
-  };
-
+  // Wrapper for locate node using the custom hook
   const handleLocateNode = (nodeId: number) => {
-    const vp = viewportRef.current;
     const node = stateRef.current.workspaceNodes.find(n => n.id === nodeId);
-    if(!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
-    const targetScale = 1.3;
-    targetZoomRef.current = targetScale;
-    vp.animate({ 
-        position: { x: node.x, y: node.y }, 
-        scale: targetScale, 
-        time: 500, 
-        ease: 'easeInOutCubic', 
-        removeOnInterrupt: true 
-    });
-  }
+    if (node && typeof node.x === 'number' && typeof node.y === 'number') {
+        handleLocateCoords(node.x, node.y);
+    }
+  };
 
+  // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
   // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Safety flags to prevent React async unmount race conditions
+    let isMounted = true;
+    let isInitialized = false;
+    
     const app = new PIXI.Application();
     let resizeObserver: ResizeObserver | null = null;
     
     const setup = async () => {
-      PIXI.Assets.setPreferences({ preferWorkers: false, crossOrigin: 'anonymous' });
-      await app.init({ 
-        resizeTo: containerRef.current!, 
-        backgroundColor: 0x020617, 
-        antialias: true 
-      });
-      containerRef.current?.appendChild(app.canvas);
-      appRef.current = app;
-
-      const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
-      if (imageUrls.length > 0) {
-        try { await PIXI.Assets.load(imageUrls); } 
-        catch (e) { toast("Some game assets couldn't be loaded. Some images may not display correctly.", "warning"); }
-      }
-
-      const viewport = new Viewport({
-        screenWidth: containerRef.current!.clientWidth,
-        screenHeight: containerRef.current!.clientHeight,
-        worldWidth: 2000,
-        worldHeight: 2000,
-        events: app.renderer.events
-      });
-      app.stage.addChild(viewport);
-      viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
-      viewport.on('zoomed', () => { targetZoomRef.current = null; });
-      viewport.on('drag-start', () => { targetZoomRef.current = null; });
-      viewport.on('pinch-start', () => { targetZoomRef.current = null; });
-      viewportRef.current = viewport;
-
-      resizeObserver = new ResizeObserver(() => {
-          if (appRef.current && viewportRef.current && containerRef.current) {
-              appRef.current.resize();
-              viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-          }
-      });
-      resizeObserver.observe(containerRef.current!);
-
-      linkLayerRef.current = new PIXI.Graphics();
-      nodeLayerRef.current = new PIXI.Container();
-      viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
-
-      simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-800))
-        .force("collide", d3.forceCollide().radius(80))
-        .force("center", d3.forceCenter(1000, 1000))
-        .force("x", d3.forceX(1000).strength(0.02))
-        .force("y", d3.forceY(1000).strength(0.02));
-
-      app.ticker.add((ticker) => {
-        if (!linkLayerRef.current) return;
+      try {
+        PIXI.Assets.setPreferences({ preferWorkers: false, crossOrigin: 'anonymous' });
         
-        linkLayerRef.current.clear();
-        
-        // Draw User Links
-        stateRef.current.userLinks.forEach(link => {
-          const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
-          const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
-          if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
-            linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
-              .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
-          }
+        await app.init({ 
+          resizeTo: containerRef.current!, 
+          backgroundColor: 0x020617, 
+          antialias: true,
+          resolution: Math.max(1, window.devicePixelRatio || 1),
+          autoDensity: true
         });
 
-        // Draw Hinted Edge Guide
-        if (stateRef.current.hintedEdgeId) {
-            const [uId, vId] = stateRef.current.hintedEdgeId.split('::').map(Number);
-            const s = stateRef.current.workspaceNodes.find(n => n.id === uId);
-            const t = stateRef.current.workspaceNodes.find(n => n.id === vId);
-            if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
-                const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; 
-                linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
-                  .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); 
-            }
+        isInitialized = true;
+
+        // SAFEGUARD: If component unmounted while awaiting PIXI, safely abort
+        if (!isMounted || !containerRef.current) {
+          app.destroy(true);
+          return;
         }
 
-        // Draw Nodes
-        stateRef.current.workspaceNodes.forEach(node => {
-          const vis = spriteMap.current[node.id];
-          if(vis && node.x != null && node.y != null) {
-            vis.container.x = node.x;
-            vis.container.y = node.y;
-            
-            const isCurrent = stateRef.current.selectedNodeId === node.id;
-            const isTarget = node.id === levelData.metadata.end_node;
-            const isStart = node.id === levelData.metadata.start_node;
-            const isHinted = stateRef.current.hintedNodeId === node.id;
+        containerRef.current.appendChild(app.canvas);
+        appRef.current = app;
 
-            let strokeColor = NODE_COLORS[node.type] || 0x334155;
-            let strokeWidth = 2;
+        const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
+        if (imageUrls.length > 0) {
+          try { await PIXI.Assets.load(imageUrls); } 
+          catch (e) { toast("Some game assets couldn't be loaded.", "warning"); }
+        }
 
-            if (isCurrent) {
-                strokeColor = 0xf59e0b;
-                strokeWidth = 6;
-            } else if (isHinted) {
-                const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5;
-                strokeColor = 0xf59e0b; 
-                strokeWidth = pulse;
-            } else if (isStart) {
-                strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff;
-                strokeWidth = 5;
-            } else if (isTarget) {
-                strokeColor = SPECIAL_NODE_COLORS.Target || 0x22d3ee;
-                strokeWidth = 5;
-            }
+        // SAFEGUARD 2: Asset loading is also async, check again
+        if (!isMounted || !containerRef.current) {
+          app.destroy(true);
+          return;
+        }
 
-            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
-          }
+        const viewport = new Viewport({
+          screenWidth: containerRef.current.clientWidth,
+          screenHeight: containerRef.current.clientHeight,
+          worldWidth: 2000,
+          worldHeight: 2000,
+          events: app.renderer.events
         });
-      });
+        
+        app.stage.addChild(viewport);
+        viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
+        
+        viewport.on('zoomed', resetTargetZoom);
+        viewport.on('drag-start', resetTargetZoom);
+        viewport.on('pinch-start', resetTargetZoom);
+        viewport.on('wheel', resetTargetZoom);
+        
+        viewportRef.current = viewport;
 
-      const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
-      const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
-      const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
-      
-      setWorkspaceNodes([startNode, endNode]);
-      setWarehouseNodes(others);
+        resizeObserver = new ResizeObserver(() => {
+            if (appRef.current && viewportRef.current && containerRef.current) {
+                appRef.current.resize();
+                viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+            }
+        });
+        resizeObserver.observe(containerRef.current);
+
+        linkLayerRef.current = new PIXI.Graphics();
+        nodeLayerRef.current = new PIXI.Container();
+        viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
+
+        simulationRef.current = d3.forceSimulation<GameNode>([])
+          .force("charge", d3.forceManyBody().strength(-800))
+          .force("collide", d3.forceCollide().radius(80))
+          .force("center", d3.forceCenter(1000, 1000))
+          .force("x", d3.forceX(1000).strength(0.02))
+          .force("y", d3.forceY(1000).strength(0.02));
+
+        app.ticker.add((ticker) => {
+          if (!linkLayerRef.current || !isMounted) return;
+          
+          linkLayerRef.current.clear();
+          
+          // Draw User Links
+          stateRef.current.userLinks.forEach(link => {
+            const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
+            const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
+            if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
+              linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
+                .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
+            }
+          });
+
+          // Draw Hinted Edge Guide
+          if (stateRef.current.hintedEdgeId) {
+              const [uId, vId] = stateRef.current.hintedEdgeId.split('::').map(Number);
+              const s = stateRef.current.workspaceNodes.find(n => n.id === uId);
+              const t = stateRef.current.workspaceNodes.find(n => n.id === vId);
+              if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
+                  const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; 
+                  linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
+                    .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); 
+              }
+          }
+
+          // Draw Nodes
+          stateRef.current.workspaceNodes.forEach(node => {
+            const vis = spriteMap.current[node.id];
+            if(vis && node.x != null && node.y != null) {
+              vis.container.x = node.x;
+              vis.container.y = node.y;
+              
+              const isCurrent = stateRef.current.selectedNodeId === node.id;
+              const isTarget = node.id === levelData.metadata.end_node;
+              const isStart = node.id === levelData.metadata.start_node;
+              const isHinted = stateRef.current.hintedNodeId === node.id;
+
+              let strokeColor = NODE_COLORS[node.type] || 0x334155;
+              let strokeWidth = 2;
+
+              if (isCurrent) {
+                  strokeColor = 0xf59e0b;
+                  strokeWidth = 6;
+              } else if (isHinted) {
+                  const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5;
+                  strokeColor = 0xf59e0b; 
+                  strokeWidth = pulse;
+              } else if (isStart) {
+                  strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff;
+                  strokeWidth = 5;
+              } else if (isTarget) {
+                  strokeColor = SPECIAL_NODE_COLORS.Target || 0x22d3ee;
+                  strokeWidth = 5;
+              }
+
+              vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
+            }
+          });
+        });
+
+        const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
+        const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
+        const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
+        
+        setWorkspaceNodes([startNode, endNode]);
+        setWarehouseNodes(others);
+      } catch (err) {
+        console.error("PIXI Setup Error: ", err);
+      }
     };
 
     setup();
 
     return () => {
+      isMounted = false; // Flag that component has unmounted
       if (resizeObserver) resizeObserver.disconnect();
-      app.destroy(true);
+      
+      // Only destroy if app.init() actually finished successfully
+      if (isInitialized) {
+        app.destroy(true);
+      }
     };
-  }, [levelData]);
+  }, [levelData, resetTargetZoom]);
 
   // --- 2. SYNC EFFECT ---
   useEffect(() => {
@@ -333,6 +325,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   }, [isWon, timeLimit, onTimeout]);
 
   // --- NODE SPRITE & DOM DRAG LOGIC ---
+  // --- NODE SPRITE & DOM DRAG LOGIC ---
   const createNodeSprite = (node: GameNode): NodeVisuals => {
     const container = new PIXI.Container();
     const bg = new PIXI.Graphics();
@@ -343,6 +336,9 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e) => {
+      // 🚨 CRITICAL FOR MOBILE: Stops the camera from panning while dragging a node!
+      e.stopPropagation(); 
+
       setHintedNodeId(null);
       setHintedEdgeId(null);
 
@@ -351,19 +347,19 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       } else {
         if (activeInfo !== null) return;
         
-        const startX = e.nativeEvent.clientX; 
-        const startY = e.nativeEvent.clientY;
+        // Use global PIXI coordinates (Works flawlessly on mouse and touch)
+        const startX = e.global.x; 
+        const startY = e.global.y;
         let hasDragged = false;
 
-        const onMove = (event: PointerEvent) => {
-          if(!viewportRef.current || !appRef.current) return;
-          const rect = appRef.current.canvas.getBoundingClientRect();
-          const localX = event.clientX - rect.left;
-          const localY = event.clientY - rect.top;
+        const onMove = (event: PIXI.FederatedPointerEvent) => {
+          if(!viewportRef.current) return;
 
-          if (Math.hypot(localX - startX, localY - startY) > 5) hasDragged = true;
+          if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) {
+              hasDragged = true;
+          }
           
-          const movePos = viewportRef.current.toWorld(localX, localY);
+          const movePos = viewportRef.current.toWorld(event.global.x, event.global.y);
           node.fx = movePos.x;
           node.fy = movePos.y;
           simulationRef.current?.alpha(0.3).restart();
@@ -372,14 +368,23 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         const onUp = () => {
           node.fx = null;
           node.fy = null;
-          window.removeEventListener('pointerup', onUp);
-          window.removeEventListener('pointermove', onMove);
+          
+          // Clean up PIXI listeners
+          if (viewportRef.current) {
+              viewportRef.current.off('pointermove', onMove);
+              viewportRef.current.off('pointerup', onUp);
+              viewportRef.current.off('pointerupoutside', onUp);
+          }
 
           if (!hasDragged) showNodeInfo(node, container);
         };
 
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
+        // Attach listeners to the viewport so dragging works even if cursor leaves the node sprite
+        if (viewportRef.current) {
+            viewportRef.current.on('pointermove', onMove);
+            viewportRef.current.on('pointerup', onUp);
+            viewportRef.current.on('pointerupoutside', onUp);
+        }
       }
     });
 
@@ -446,13 +451,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         if (nodeA && nodeB && nodeA.x != null && nodeA.y != null && nodeB.x != null && nodeB.y != null) {
             const centerX = (nodeA.x + nodeB.x) / 2;
             const centerY = (nodeA.y + nodeB.y) / 2;
-            viewportRef.current?.animate({
-                position: { x: centerX, y: centerY },
-                scale: 1.2,
-                time: 500,
-                ease: 'easeInOutCubic',
-                removeOnInterrupt: true
-            });
+            handleLocateCoords(centerX, centerY);
         }
         return;
     }
@@ -607,13 +606,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       
-      {/* 
-        This single component replaces:
-        1. The Mobile Overlay Backdrop
-        2. The Sidebar UI
-        3. The Search Filter Logic
-        4. The "Show Sidebar" floating button
-      */}
       <SharedSidebar 
         isOpen={isSidebarOpen}
         onToggle={toggleSidebar}
@@ -631,7 +623,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
-        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
+        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
 
         {/* DESKTOP TOOLBAR */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-max">

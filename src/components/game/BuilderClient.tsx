@@ -6,6 +6,8 @@ import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type NodeVisuals } from '../../types/game';
 import { toast, ToastContainer } from '../ui/Toast';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useFullscreen } from '../../hooks/useFullscreen';
+import { useViewportControls } from '../../hooks/useViewportControls';
 import { SharedSidebar } from '../SharedSidebar';
 import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
 import { SharedCanvasControls } from '../SharedCanvasControls';
@@ -39,8 +41,20 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
-  // Custom Sidebar Hook
+  // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+  const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
+
+  // --- REFS ---
+  const appRef = useRef<PIXI.Application | null>(null);
+  const viewportRef = useRef<Viewport | null>(null);
+  const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
+  const nodeLayerRef = useRef<PIXI.Container | null>(null);
+  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
+  const spriteMap = useRef<Record<number, NodeVisuals>>({});
+
+  // Viewport Controls Hook
+  const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
   // --- STATE ---
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
@@ -54,7 +68,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [edgeSourceId, setEdgeSourceId] = useState<number | null>(null);
   
   // UI States
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [isModalExpanded, setIsModalExpanded] = useState(false);
@@ -79,15 +92,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         setTimeLeft(builderData.config.buildTime);
     }
   }, [builderData]);
-
-  // --- REFS ---
-  const appRef = useRef<PIXI.Application | null>(null);
-  const viewportRef = useRef<Viewport | null>(null);
-  const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
-  const nodeLayerRef = useRef<PIXI.Container | null>(null);
-  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-  const spriteMap = useRef<Record<number, NodeVisuals>>({});
-  const targetZoomRef = useRef<number | null>(null);
 
   const stateRef = useRef({
     tool: 'move' as ToolType,
@@ -523,57 +527,12 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
-
-  // --- FULLSCREEN & ZOOM & CENTER & LOCATE ---
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      mainContainerRef.current?.requestFullscreen().catch(err => console.error("Failed to enter fullscreen: ", err));
-    } else document.exitFullscreen().catch((err) => { console.error("Failed to exit fullscreen: ", err)});
-  };
-
-  const handleZoomIn = () => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      const target = Math.min((targetZoomRef.current || vp.scale.x) * 1.5, 3);
-      targetZoomRef.current = target;
-      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
-  const handleZoomOut = () => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      const target = Math.max((targetZoomRef.current || vp.scale.x) * 0.6, 0.2);
-      targetZoomRef.current = target;
-      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
-  const handleCenterView = () => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      targetZoomRef.current = 1; 
-      vp.animate({ position: { x: 1000, y: 1000 }, scale: 1, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
+  // Wrapper for locate node using the custom hook
   const handleLocateNode = (nodeId: number) => {
-      const vp = viewportRef.current;
       const node = stateRef.current.workspace.find(n => n.id === nodeId);
-      if (!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
-      
-      const targetScale = 1.3;
-      targetZoomRef.current = targetScale;
-      vp.animate({ 
-          position: { x: node.x, y: node.y }, 
-          scale: targetScale, 
-          time: 500, 
-          ease: 'easeInOutCubic', 
-          removeOnInterrupt: true 
-      });
+      if (node && typeof node.x === 'number' && typeof node.y === 'number') {
+          handleLocateCoords(node.x, node.y);
+      }
   };
 
   // --- INITIALIZE CANVAS ---
@@ -582,7 +541,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     const app = new PIXI.Application();
     
     const init = async () => {
-      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true });
+      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true, resolution: Math.max(1, window.devicePixelRatio || 1), autoDensity: true });
       containerRef.current?.appendChild(app.canvas);
       appRef.current = app;
 
@@ -603,9 +562,10 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       app.stage.addChild(viewport);
       viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
       
-      viewport.on('wheel', () => { targetZoomRef.current = null; });
-      viewport.on('drag-start', () => { targetZoomRef.current = null; });
-      viewport.on('pinch-start', () => { targetZoomRef.current = null; });
+      // Use the reset function from the custom hook
+      viewport.on('wheel', resetTargetZoom);
+      viewport.on('drag-start', resetTargetZoom);
+      viewport.on('pinch-start', resetTargetZoom);
       
       viewportRef.current = viewport;
 
@@ -668,7 +628,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     init();
     return () => app.destroy(true);
-  }, [builderData]);
+  }, [builderData, resetTargetZoom]);
 
   // --- SYNC WORKSPACE & EDGES ---
   useEffect(() => {
@@ -887,7 +847,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
-        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
+        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
 
         {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
@@ -908,8 +868,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             
             <SharedCanvasControls 
                 onCenterView={handleCenterView}
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
+                onZoomIn={() => handleZoom('in')}
+                onZoomOut={() => handleZoom('out')}
                 isFullscreen={isFullscreen}
                 onToggleFullscreen={toggleFullscreen}
             />

@@ -4,6 +4,8 @@ import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type NodeVisuals } from '../../types/game';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useFullscreen } from '../../hooks/useFullscreen';
+import { useViewportControls } from '../../hooks/useViewportControls';
 import { SharedSidebar } from '../SharedSidebar';
 import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
 import { SharedCanvasControls } from '../SharedCanvasControls';
@@ -16,8 +18,9 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
 
-  // Custom Sidebar Hook
+  // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+  const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
 
   // --- GAME STATES ---
   const [isReady, setIsReady] = useState(false);
@@ -39,8 +42,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   const [edgeSourceId, setEdgeSourceId] = useState<number | null>(null);
   const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // --- REFS ---
   const appRef = useRef<PIXI.Application | null>(null);
@@ -48,8 +49,10 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
   const nodeLayerRef = useRef<PIXI.Container | null>(null);
   const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-  const spriteMap = useRef<Record<number, NodeVisuals>>({});
-  const targetZoomRef = useRef<number | null>(null);
+  const spriteMap = useRef<Record<number, NodeVisuals>>({}); // Restored spriteMap Ref
+
+  // Viewport Controls Hook
+  const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
   const stateRef = useRef({
     tool: 'move' as 'move' | 'link',
@@ -70,49 +73,13 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     stateRef.current = { tool, targetNodeId, edgeSourceId, workspace, userLinks };
   }, [tool, targetNodeId, edgeSourceId, workspace, userLinks]);
 
-  // --- FULLSCREEN & ZOOM HANDLERS ---
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      mainContainerRef.current?.requestFullscreen().catch(err => console.error(err));
-    } else document.exitFullscreen();
-  };
-
-  const handleZoom = (direction: 'in' | 'out') => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      const currentTarget = targetZoomRef.current || vp.scale.x;
-      const target = direction === 'in' ? Math.min(currentTarget * 1.5, 3) : Math.max(currentTarget * 0.6, 0.2);
-      targetZoomRef.current = target;
-      vp.animate({ scale: target, time: 300, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
-  const handleCenterView = () => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      targetZoomRef.current = 1; 
-      vp.animate({ position: new PIXI.Point(1000, 1000), scale: 1, time: 400, ease: 'easeOutQuart', removeOnInterrupt: true });
-  };
-
+  // Wrapper for locate node using the custom hook
   const handleLocateNode = (nodeId: number) => {
-    const vp = viewportRef.current;
     const node = stateRef.current.workspace.find(n => n.id === nodeId);
-    if(!vp || !node || typeof node.x !== 'number' || typeof node.y !== 'number') return;
-    const targetScale = 1.3;
-    targetZoomRef.current = targetScale;
-    vp.animate({ 
-        position: { x: node.x, y: node.y }, 
-        scale: targetScale, 
-        time: 500, 
-        ease: 'easeInOutCubic', 
-        removeOnInterrupt: true 
-    });
-  }
+    if (node && typeof node.x === 'number' && typeof node.y === 'number') {
+        handleLocateCoords(node.x, node.y);
+    }
+  };
 
   // --- PRELOAD ASSETS ---
   useEffect(() => {
@@ -247,105 +214,143 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
   // --- INITIALIZATION (CANVAS) ---
   useEffect(() => {
     if (!containerRef.current) return;
+
+    let isMounted = true;
+    let isInitialized = false;
+
     const app = new PIXI.Application();
     let resizeObserver: ResizeObserver | null = null;
     
     const init = async () => {
-      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true });
-      containerRef.current?.appendChild(app.canvas);
-      appRef.current = app;
+      try {
+        await app.init({ 
+          resizeTo: containerRef.current!, 
+          backgroundColor: 0x020617, 
+          antialias: true,
+          resolution: Math.max(1, window.devicePixelRatio || 1), // Crisp on mobile
+          autoDensity: true // Syncs CSS pixels with canvas pixels
+        });
 
-      const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
-      if (imageUrls.length > 0) {
-          try { await PIXI.Assets.load(imageUrls); } catch(e) { console.warn("Pixi GPU cache skip."); }
-      }
+        isInitialized = true;
 
-      const viewport = new Viewport({
-        screenWidth: containerRef.current!.clientWidth, 
-        screenHeight: containerRef.current!.clientHeight,
-        worldWidth: 2000, worldHeight: 2000, events: app.renderer.events
-      });
-      app.stage.addChild(viewport);
-      viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
-      viewport.on('zoomed', () => { targetZoomRef.current = null; });
-      viewportRef.current = viewport;
+        if (!isMounted || !containerRef.current) {
+          app.destroy(true);
+          return;
+        }
 
-      resizeObserver = new ResizeObserver(() => {
-          if (viewportRef.current && containerRef.current) {
-              viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-          }
-      });
-      resizeObserver.observe(containerRef.current!);
+        containerRef.current.appendChild(app.canvas);
+        appRef.current = app;
 
-      linkLayerRef.current = new PIXI.Graphics();
-      nodeLayerRef.current = new PIXI.Container();
-      viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
+        const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
+        if (imageUrls.length > 0) {
+            try { await PIXI.Assets.load(imageUrls); } catch(e) { console.warn("Pixi GPU cache skip."); }
+        }
 
-      simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-250)) 
-        .force("collide", d3.forceCollide().radius(60)) 
-        .force("x", d3.forceX(1000).strength(0.04)) 
-        .force("y", d3.forceY(1000).strength(0.04)) 
-        .force("center", d3.forceCenter(1000, 1000));
+        if (!isMounted || !containerRef.current) {
+          app.destroy(true);
+          return;
+        }
 
-      app.ticker.add(() => {
-        if (!linkLayerRef.current) return;
+        const viewport = new Viewport({
+          screenWidth: containerRef.current.clientWidth, 
+          screenHeight: containerRef.current.clientHeight,
+          worldWidth: 2000, worldHeight: 2000, events: app.renderer.events
+        });
         
-        linkLayerRef.current.clear();
-        stateRef.current.userLinks.forEach(edge => {
-            const s = stateRef.current.workspace.find(n => n.id === edge.sourceId);
-            const t = stateRef.current.workspace.find(n => n.id === edge.targetId);
-            if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
-                linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y).stroke({ width: 5, color: 0x8b5cf6, alpha: 1 }); 
+        app.stage.addChild(viewport);
+        viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
+        
+        viewport.on('zoomed', resetTargetZoom);
+        viewport.on('drag-start', resetTargetZoom);
+        viewport.on('pinch-start', resetTargetZoom);
+        viewport.on('wheel', resetTargetZoom);
+
+        viewportRef.current = viewport;
+
+        resizeObserver = new ResizeObserver(() => {
+            if (appRef.current && viewportRef.current && containerRef.current) {
+                appRef.current.resize();
+                viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
             }
         });
+        resizeObserver.observe(containerRef.current);
 
-        stateRef.current.workspace.forEach(node => {
-          const vis = spriteMap.current[node.id];
-          if (vis && Number.isFinite(node.x) && Number.isFinite(node.y)) {
-            vis.container.x = node.x!; 
-            vis.container.y = node.y!;
+        linkLayerRef.current = new PIXI.Graphics();
+        nodeLayerRef.current = new PIXI.Container();
+        viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
 
-            const isStart = levelData.metadata.start_node === node.id;
-            const isTarget = stateRef.current.targetNodeId === node.id;
-            const isEdgeSource = stateRef.current.edgeSourceId === node.id;
-            
-            let strokeColor = NODE_COLORS[node.type] || 0x334155;
-            let strokeWidth = 2;
+        simulationRef.current = d3.forceSimulation<GameNode>([])
+          .force("charge", d3.forceManyBody().strength(-250)) 
+          .force("collide", d3.forceCollide().radius(60)) 
+          .force("x", d3.forceX(1000).strength(0.04)) 
+          .force("y", d3.forceY(1000).strength(0.04)) 
+          .force("center", d3.forceCenter(1000, 1000));
 
-            if (isEdgeSource) {
-                strokeColor = 0xf59e0b; 
-                strokeWidth = 6;
-            } else if (isStart) {
-                strokeColor = SPECIAL_NODE_COLORS.Start;
-                strokeWidth = 5;
-            } else if (isTarget) {
-                strokeColor = SPECIAL_NODE_COLORS.Target;
-                strokeWidth = 5;
+        app.ticker.add(() => {
+          if (!linkLayerRef.current || !isMounted) return;
+          
+          linkLayerRef.current.clear();
+          stateRef.current.userLinks.forEach(edge => {
+              const s = stateRef.current.workspace.find(n => n.id === edge.sourceId);
+              const t = stateRef.current.workspace.find(n => n.id === edge.targetId);
+              if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
+                  linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y).stroke({ width: 5, color: 0x8b5cf6, alpha: 1 }); 
+              }
+          });
+
+          stateRef.current.workspace.forEach(node => {
+            const vis = spriteMap.current[node.id];
+            if (vis && Number.isFinite(node.x) && Number.isFinite(node.y)) {
+              vis.container.x = node.x!; 
+              vis.container.y = node.y!;
+
+              const isStart = levelData.metadata.start_node === node.id;
+              const isTarget = stateRef.current.targetNodeId === node.id;
+              const isEdgeSource = stateRef.current.edgeSourceId === node.id;
+              
+              let strokeColor = NODE_COLORS[node.type] || 0x334155;
+              let strokeWidth = 2;
+
+              if (isEdgeSource) {
+                  strokeColor = 0xf59e0b; 
+                  strokeWidth = 6;
+              } else if (isStart) {
+                  strokeColor = SPECIAL_NODE_COLORS.Start;
+                  strokeWidth = 5;
+              } else if (isTarget) {
+                  strokeColor = SPECIAL_NODE_COLORS.Target;
+                  strokeWidth = 5;
+              }
+
+              vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
             }
-
-            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
-          }
+          });
         });
-      });
 
-      const start = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
-      const end = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
-      const others = levelData.nodes.filter(n => n.id !== start.id && n.id !== end.id);
-      
-      setWorkspace([
-        { ...start, x: 1000 - 100, y: 1000, vx:0, vy:0 }, 
-        { ...end, x: 1000 + 100, y: 1000, vx:0, vy:0 }
-      ]);
-      setWarehouse(others);
+        const start = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
+        const end = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
+        const others = levelData.nodes.filter(n => n.id !== start.id && n.id !== end.id);
+        
+        setWorkspace([
+          { ...start, x: 1000 - 100, y: 1000, vx:0, vy:0 }, 
+          { ...end, x: 1000 + 100, y: 1000, vx:0, vy:0 }
+        ]);
+        setWarehouse(others);
+      } catch (err) {
+        console.error("PIXI Setup Error:", err);
+      }
     };
 
     init();
+
     return () => {
+      isMounted = false;
       if (resizeObserver) resizeObserver.disconnect();
-      app.destroy(true);
+      if (isInitialized) {
+        app.destroy(true);
+      }
     };
-  }, []);
+  }, [levelData, resetTargetZoom]);
 
   // --- SYNC WORKSPACE ---
   useEffect(() => {
@@ -386,6 +391,8 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e) => {
+      e.stopPropagation(); // Prevents dragging a node from dragging the entire canvas
+
       const currentTool = stateRef.current.tool;
       
       if (currentTool === 'link') {
@@ -415,20 +422,19 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           }
       }
       else if (currentTool === 'move') {
+          // Use e.global for cross-device (mouse/touch) compatibility
           const startX = e.global.x; 
           const startY = e.global.y;
           let hasDragged = false;
 
-          const onMove = (event: PointerEvent) => {
-              if(!viewportRef.current || !appRef.current) return;
+          const onMove = (event: PIXI.FederatedPointerEvent) => {
+              if(!viewportRef.current) return;
               
-              const rect = appRef.current.canvas.getBoundingClientRect();
-              const localX = event.clientX - rect.left;
-              const localY = event.clientY - rect.top;
-
-              if (Math.hypot(localX - startX, localY - startY) > 5) hasDragged = true;
+              if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) {
+                  hasDragged = true;
+              }
               
-              const movePos = viewportRef.current.toWorld(localX, localY);
+              const movePos = viewportRef.current.toWorld(event.global.x, event.global.y);
               node.fx = movePos.x;
               node.fy = movePos.y;
               simulationRef.current?.alpha(0.3).restart();
@@ -437,8 +443,13 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           const onUp = () => {
               node.fx = null;
               node.fy = null;
-              window.removeEventListener('pointerup', onUp);
-              window.removeEventListener('pointermove', onMove);
+              
+              // Clean up viewport-level listeners
+              if (viewportRef.current) {
+                  viewportRef.current.off('pointermove', onMove);
+                  viewportRef.current.off('pointerup', onUp);
+                  viewportRef.current.off('pointerupoutside', onUp);
+              }
 
               if (!hasDragged) {
                   const pos = viewportRef.current!.toScreen(container.x, container.y);
@@ -447,8 +458,12 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
               }
           };
 
-          window.addEventListener('pointermove', onMove);
-          window.addEventListener('pointerup', onUp);
+          // Attach listeners to viewport so cursor can leave the node sprite without breaking drag
+          if (viewportRef.current) {
+              viewportRef.current.on('pointermove', onMove);
+              viewportRef.current.on('pointerup', onUp);
+              viewportRef.current.on('pointerupoutside', onUp);
+          }
       }
     });
 
@@ -548,13 +563,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           </div>
       )}
 
-      {/* 
-        This single component replaces:
-        1. The Mobile Overlay Backdrop
-        2. The Sidebar UI
-        3. The Search Filter Logic
-        4. The "Show Sidebar" floating button
-      */}
       <SharedSidebar 
         isOpen={isSidebarOpen}
         onToggle={toggleSidebar}
@@ -612,9 +620,6 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
                 onZoomOut={() => handleZoom('out')}
                 isFullscreen={isFullscreen}
                 onToggleFullscreen={toggleFullscreen}
-                // Optional: If you prefer this file to keep them strictly vertical like it was before,
-                // you can uncomment the line below. Otherwise, they will beautifully align horizontally on desktop!
-                // className="flex flex-col gap-2 pointer-events-auto"
             />
         </div>
 
@@ -625,8 +630,8 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
             </div>
         )}
 
-        {/* CANVAS - Locked until started */}
-        <div ref={containerRef} className={`w-full h-full ${hasStarted ? 'pointer-events-auto' : 'pointer-events-none'}`} />
+        {/* CANVAS - Note: touch-none added to prevent mobile scrolling while dragging */}
+        <div ref={containerRef} className={`absolute inset-0 z-10 touch-none ${hasStarted ? 'pointer-events-auto' : 'pointer-events-none'}`} />
 
         {/* RETRACTION LIST */}
         <div className={`absolute bottom-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto transition-all duration-500 ${isSidebarOpen ? 'left-6 md:left-[19.5rem]' : 'left-6'}`} style={{ scrollbarWidth: 'none' }}>
