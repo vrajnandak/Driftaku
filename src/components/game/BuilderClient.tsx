@@ -6,6 +6,8 @@ import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type NodeVisuals } from '../../types/game';
 import { toast, ToastContainer } from '../ui/Toast';
 import { CenterViewIcon, FullscreenEnterIcon, FullscreenExitIcon, ZoomInIcon, ZoomOutIcon } from '../ui/Icons';
+import { useSidebar } from '../../hooks/useSidebar';
+import { SharedSidebar } from '../SharedSidebar';
 
 interface Props {
   roomId: string;
@@ -36,6 +38,9 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
+  // Custom Sidebar Hook
+  const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+
   // --- STATE ---
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
   const [tool, setTool] = useState<ToolType>('move');
@@ -48,9 +53,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [edgeSourceId, setEdgeSourceId] = useState<number | null>(null);
   
   // UI States
-  const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [isModalExpanded, setIsModalExpanded] = useState(false);
@@ -67,15 +70,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false); 
   const [timeLeft, setTimeLeft] = useState<number>(0);
-
-  // Responsive default: close sidebar on mobile initial load
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
-  }, []);
-
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   useEffect(() => {
     if (builderData) {
@@ -809,17 +803,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       if (targetNodeId === nodeId) setTargetNodeId(null);
       if (edgeSourceId === nodeId) setEdgeSourceId(null);
   };
-
-  const isDeployed = (nodeId: number) => workspace.some(n => n.id === nodeId);
   
-  const filteredNodes = useMemo(() => {
-    if (!builderData) return [];
-    return builderData.nodes.filter((n: GameNode) => {
-        const typeStr = TYPE_MAP[n.type as keyof typeof TYPE_MAP] || "";
-        return n.name.toLowerCase().includes(searchQuery.toLowerCase()) || typeStr.toLowerCase().includes(searchQuery.toLowerCase());
-    });
-  }, [builderData, searchQuery]);
-
   // Helper method for rendering the core tools efficiently in Desktop/Mobile variants
   const renderToolbar = () => (
     <>
@@ -885,110 +869,24 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full font-sans bg-slate-950 overflow-hidden">
       
-      {/* MOBILE OVERLAY BACKDROP */}
-      <div 
-          className={`md:hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-          onClick={() => setIsSidebarOpen(false)}
+      <SharedSidebar 
+        isOpen={isSidebarOpen}
+        onToggle={toggleSidebar}
+        onClose={closeSidebar}
+        title="Warehouse"
+        subtitle={`${workspace.length} / ${builderData.config.maxNodes}`}
+        nodes={builderData.nodes}
+        deployedNodeIds={workspace.map(n => n.id)}
+        onDeploy={deployNode}
+        onLocate={handleLocateNode}
+        onRetract={retractNode}
       />
-
-      {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col w-[85vw] max-w-[320px] md:w-80 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        {isSidebarOpen && (
-          <>
-            <div className="p-4 md:p-5 border-b border-white/10 bg-slate-900/50">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
-                <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-                </button>
-              </div>
-              
-              <div className="relative mb-4">
-                <input 
-                  type="text" placeholder="Search anime, actors..." 
-                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
-                />
-                <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-
-              <div className="flex justify-between items-end">
-                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes</span>
-                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{workspace.length} / {builderData.nodes.length}</span>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-900/30">
-              {filteredNodes.length === 0 && <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>}
-              {filteredNodes.map((node: GameNode) => {
-                const deployed = isDeployed(node.id);
-                const typeString = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
-                const colorCode = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16)}`;
-
-                return (
-                  <div 
-                    key={node.id} 
-                    className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border
-                      ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400 cursor-pointer active:scale-95'}`}
-                    onClick={() => { if (!deployed) deployNode(node); }}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
-                        {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                      </div>
-                      <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
-                        <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                        <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorCode}}>
-                            {typeString}
-                        </p>
-                      </div>
-                    </div>
-
-                    {deployed && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button 
-                          onClick={(e) => { 
-                              e.stopPropagation(); 
-                              handleLocateNode(node.id); 
-                              if (window.innerWidth < 768) setIsSidebarOpen(false); 
-                          }}
-                          className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                        >
-                          Locate
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                          className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                        >
-                          Retract
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </>
-        )}
-      </div>
 
       {/* CANVAS AREA */}
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
-
-        {/* SHOW MENU BUTTON (Visible when sidebar is closed) */}
-        {!isSidebarOpen && (
-            <button 
-                onClick={toggleSidebar}
-                className="absolute top-4 left-4 md:top-6 md:left-6 z-30 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all pointer-events-auto active:scale-95"
-            >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-            </button>
-        )}
 
         {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">

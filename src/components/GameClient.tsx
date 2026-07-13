@@ -7,6 +7,8 @@ import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 import { toast, ToastContainer } from './ui/Toast';
 import { CenterViewIcon, ZoomOutIcon, ZoomInIcon, FullscreenEnterIcon, FullscreenExitIcon } from './ui/Icons';
+import { useSidebar } from '../hooks/useSidebar';
+import { SharedSidebar } from './SharedSidebar';
 
 interface Props {
   levelData: LevelData;
@@ -20,6 +22,9 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const containerRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   
+  // Custom Sidebar Hook
+  const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
+
   // Pixi/D3 Refs
   const appRef = useRef<PIXI.Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
@@ -41,8 +46,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [tool, setTool] = useState<'select' | 'link'>('select');
   const [isWon, setIsWon] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
   const [uiPath, setUiPath] = useState<number[]>([levelData.metadata.start_node]);
@@ -73,13 +76,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     stateRef.current.hintedNodeId = hintedNodeId;
     stateRef.current.hintedEdgeId = hintedEdgeId;
   }, [userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId]);
-
-  // Responsive default: close sidebar on mobile initial load
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
-  }, []);
 
   // --- FULLSCREEN HANDLER ---
   useEffect(() => {
@@ -213,9 +209,9 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             const s = stateRef.current.workspaceNodes.find(n => n.id === uId);
             const t = stateRef.current.workspaceNodes.find(n => n.id === vId);
             if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
-                const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; // Alpha 0.4 to 1.0
+                const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; 
                 linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
-                  .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); // Amber/Gold Color
+                  .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); 
             }
         }
 
@@ -239,7 +235,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
                 strokeWidth = 6;
             } else if (isHinted) {
                 const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5;
-                strokeColor = 0xf59e0b; // Gold Hint Color
+                strokeColor = 0xf59e0b; 
                 strokeWidth = pulse;
             } else if (isStart) {
                 strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff;
@@ -346,7 +342,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     container.cursor = 'pointer';
 
     container.on('pointerdown', (e) => {
-      // CLEAR HINTS UPON INTERACTION
       setHintedNodeId(null);
       setHintedEdgeId(null);
 
@@ -495,7 +490,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           const updatedLinks = [...stateRef.current.userLinks, newLink];
           setUserLinks(updatedLinks);
           checkWinCondition(updatedLinks);
-          setHintedEdgeId(null); // Clear hint visual when a successful link is made
+          setHintedEdgeId(null); 
         }
       } else {
         toast(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`, "warning");
@@ -550,8 +545,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     }
   };
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
   const showNodeInfo = (node: GameNode, container: PIXI.Container) => {
     if (!viewportRef.current) return;
     viewportRef.current.pause = true; 
@@ -569,8 +562,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       viewportRef.current!.pause = false;
     }, 3000);
   };
-
-  const isDeployed = (nodeId: number) => workspaceNodes.some(n => n.id === nodeId);
 
   const renderToolbar = () => (
     <>
@@ -615,120 +606,33 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   return (
     <div ref={mainContainerRef} className="relative flex h-full w-full bg-slate-950 overflow-hidden font-sans">
       
-      {/* MOBILE OVERLAY BACKDROP */}
-      <div 
-          className={`md:hidden absolute inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-          onClick={() => setIsSidebarOpen(false)}
+      {/* 
+        This single component replaces:
+        1. The Mobile Overlay Backdrop
+        2. The Sidebar UI
+        3. The Search Filter Logic
+        4. The "Show Sidebar" floating button
+      */}
+      <SharedSidebar 
+        isOpen={isSidebarOpen}
+        onToggle={toggleSidebar}
+        onClose={closeSidebar}
+        title="Warehouse"
+        subtitle={`Available Nodes ${levelData.nodes.length}`}
+        nodes={warehouseNodes}
+        deployedNodeIds={workspaceNodes.map(n => n.id)}
+        onDeploy={deployNode}
+        onLocate={handleLocateNode}
+        onRetract={retractNode}
       />
 
-      {/* SIDEBAR */}
-      <div className={`absolute left-0 top-0 h-full border-r border-white/10 bg-slate-900 shadow-2xl z-40 transition-transform duration-500 flex flex-col w-[85vw] max-w-[320px] md:w-72 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          {isSidebarOpen && (
-              <>
-                  <div className="p-4 md:p-5 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
-                      <div>
-                          <h2 className="text-white font-black uppercase tracking-tighter text-lg italic">Warehouse</h2>
-                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Available Nodes {levelData.nodes.length}</p>
-                      </div>
-                      <button onClick={toggleSidebar} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg transition-colors">
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
-                      </button>
-                  </div>
-                  <div className="p-3 bg-slate-900/50">
-                    <div className="relative">
-                      <input 
-                        type="text"
-                        placeholder="Search anime, actors..."
-                        className="w-full bg-slate-950 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                      <svg className="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-2 custom-scrollbar bg-slate-900/30">
-                        {(() => {
-                            const query = searchQuery.toLowerCase();
-                            const filteredNodes = warehouseNodes.filter(node => {
-                                const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "";
-                                return node.name.toLowerCase().includes(query) ||
-                                typeStr.toLowerCase().includes(query);
-                            });
-
-                            if (filteredNodes.length === 0) return <p className="text-slate-500 text-xs text-center mt-10">No nodes found.</p>;
-
-                            return filteredNodes.map(node => {
-                                const deployed = isDeployed(node.id);
-                                const typeStr = TYPE_MAP[node.type as keyof typeof TYPE_MAP] || "Unknown";
-                                const colorStr = `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`;
-                                return (
-                                  <div 
-                                    key={node.id} 
-                                    onClick={() => { if (!deployed) deployNode(node); }}
-                                    className={`w-full flex items-center justify-between p-2 rounded-xl transition-all border cursor-pointer active:scale-95
-                                      ${deployed ? 'bg-slate-900 border-white/10 opacity-70 hover:opacity-100 hover:border-indigo-500/50' : 'bg-slate-800/50 border-white/5 hover:bg-indigo-600 hover:border-indigo-400'}`}
-                                >
-                                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                                        <div className={`w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 ${deployed ? 'grayscale opacity-70' : 'bg-black'}`}>
-                                            {node.image && <img src={node.image} className="w-full h-full object-cover" />}
-                                        </div>
-                                        <div className={`flex-1 min-w-0 ${deployed ? 'opacity-70' : ''}`}>
-                                            <p className="text-white text-[11px] font-bold truncate leading-tight">{node.name}</p>
-                                            <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{color: colorStr}}>
-                                                {typeStr}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {deployed && (
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <button 
-                                                onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    handleLocateNode(node.id); 
-                                                    if (window.innerWidth < 768) setIsSidebarOpen(false); 
-                                                }}
-                                                className="px-2.5 py-1.5 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                                            >
-                                                Locate
-                                            </button>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                                                className="px-2.5 py-1.5 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                                            >
-                                                Retract
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )});
-                        })()}
-                    </div>
-                  </div>
-              </>
-          )}
-      </div>
-
-      {/* SHOW BUTTON (Visible when sidebar is closed) */}
-      {!isSidebarOpen && (
-          <button 
-              onClick={toggleSidebar}
-              className="absolute top-6 left-4 z-40 bg-indigo-600 text-white p-3 rounded-xl shadow-2xl hover:bg-indigo-500 transition-all"
-          >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-          </button>
-      )}
-
-      {/* FIXED CANVAS WRAPPER (overflow-hidden to prevent stretch) */}
+      {/* FIXED CANVAS WRAPPER */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
         
         {/* PIXI CANVAS PINNED */}
         <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto" />
 
-        {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
-        {/* FIXED: w-max added so the background scales perfectly around buttons */}
+        {/* DESKTOP TOOLBAR */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-max">
             {renderToolbar()}
         </div>
