@@ -8,6 +8,7 @@ import { toast, ToastContainer } from '../ui/Toast';
 import { CenterViewIcon, FullscreenEnterIcon, FullscreenExitIcon, ZoomInIcon, ZoomOutIcon } from '../ui/Icons';
 import { useSidebar } from '../../hooks/useSidebar';
 import { SharedSidebar } from '../SharedSidebar';
+import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
 
 interface Props {
   roomId: string;
@@ -938,31 +939,16 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         <div className={`absolute left-4 bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
             
             {/* RETRACTION LIST */}
-            {workspace.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  {workspace.map(node => (
-                      <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-2 pr-1.5 py-1.5 md:pl-3 md:pr-2 md:py-2 rounded-xl flex items-center gap-2 md:gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800/90 transition-colors" onClick={() => handleLocateNode(node.id)}>
-                            <div 
-                                className="w-2 h-2 rounded-full flex-shrink-0" 
-                                style={{backgroundColor: `#${(NODE_COLORS[node.type] || 0xffffff).toString(16).padStart(6, '0')}`}} 
-                            />
-                          <div className="flex flex-col pointer-events-none">
-                            <span className="text-[11px] md:text-[12px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
-                            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{color: startNodeId === node.id ? '#ffffff' : (targetNodeId === node.id ? '#06b6d4' : '#64748b')}}>
-                                {startNodeId === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target Node' : 'Node')}
-                            </span>
-                          </div>
-                          <button 
-                              onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                              title="Remove from Web"
-                              className="w-5 h-5 md:w-6 md:h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-xs md:text-sm font-bold ml-1"
-                          >
-                              ×
-                          </button>
-                      </div>
-                  ))}
-              </div>
-            )}
+            <SharedWorkspaceSlider 
+                nodes={workspace}
+                startNodeId={startNodeId}
+                targetNodeId={targetNodeId}
+                onLocate={handleLocateNode}
+                onRetract={retractNode}
+                hideRetractForSpecialNodes={false}
+                showSubtitles={true}
+                targetLabel="Target Node"
+            />
 
             {/* MOBILE TOOLBAR (Hidden on Desktop) */}
             <div className="md:hidden flex gap-1 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto overflow-x-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

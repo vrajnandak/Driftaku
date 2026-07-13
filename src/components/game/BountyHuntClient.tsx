@@ -6,6 +6,7 @@ import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelDa
 import { CenterViewIcon, FullscreenEnterIcon, FullscreenExitIcon, ZoomInIcon, ZoomOutIcon } from '../ui/Icons';
 import { useSidebar } from '../../hooks/useSidebar';
 import { SharedSidebar } from '../SharedSidebar';
+import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
 
 interface Props {
   levelData: LevelData;
@@ -635,22 +636,16 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
 
         {/* RETRACTION LIST */}
         <div className={`absolute bottom-6 right-6 z-30 flex gap-2 overflow-x-auto no-scrollbar pb-2 pointer-events-auto transition-all duration-500 ${isSidebarOpen ? 'left-6 md:left-[19.5rem]' : 'left-6'}`} style={{ scrollbarWidth: 'none' }}>
-            {workspace.length > 0 && workspace.map(node => (
-                <div key={node.id} className="bg-slate-900/90 border border-white/10 pl-3 pr-2 py-2 rounded-xl flex items-center gap-3 backdrop-blur-md shadow-lg shrink-0 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleLocateNode(node.id)}>
-                    <div className="flex flex-col pointer-events-none">
-                      <span className="text-[11px] text-white font-bold whitespace-nowrap leading-tight">{node.name}</span>
-                      <span className="text-[8px] font-bold uppercase tracking-widest" style={{color: levelData.metadata.start_node === node.id ? '#ffffff' : (targetNodeId === node.id ? '#22d3ee' : '#64748b')}}>
-                          {levelData.metadata.start_node === node.id ? 'Start Node' : (targetNodeId === node.id ? 'Target (Bot)' : 'Node')}
-                      </span>
-                    </div>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); retractNode(node.id); }}
-                        className="w-6 h-6 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all text-sm font-bold"
-                    >
-                        ×
-                    </button>
-                </div>
-            ))}
+            <SharedWorkspaceSlider 
+                nodes={workspace}
+                startNodeId={levelData.metadata.start_node}
+                targetNodeId={targetNodeId}
+                onLocate={handleLocateNode}
+                onRetract={retractNode}
+                hideRetractForSpecialNodes={false}
+                showSubtitles={true}
+                targetLabel="Target (Bot)"
+            />
         </div>
 
         {/* FLOATING INFO LABEL */}
