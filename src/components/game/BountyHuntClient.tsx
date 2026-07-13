@@ -3,10 +3,10 @@ import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3 from 'd3-force';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type NodeVisuals } from '../../types/game';
-import { CenterViewIcon, FullscreenEnterIcon, FullscreenExitIcon, ZoomInIcon, ZoomOutIcon } from '../ui/Icons';
 import { useSidebar } from '../../hooks/useSidebar';
 import { SharedSidebar } from '../SharedSidebar';
 import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
+import { SharedCanvasControls } from '../SharedCanvasControls';
 
 interface Props {
   levelData: LevelData;
@@ -605,23 +605,17 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
         </div>
 
         {/* ZOOM & CENTER CONTROLS */}
-        <div className="absolute top-24 right-6 sm:top-28 z-30 flex flex-col gap-2 pointer-events-auto">
-            <button onClick={handleCenterView} title="Center View" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <CenterViewIcon />
-            </button>
-            <button onClick={() => handleZoom('in')} title="Zoom In" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <ZoomInIcon />
-            </button>
-            <button onClick={() => handleZoom('out')} title="Zoom Out" className="w-10 h-10 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg">
-                <ZoomOutIcon />
-            </button>
-            <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg`}>
-                {isFullscreen ? (
-                    <FullscreenExitIcon />
-                ) : (
-                    <FullscreenEnterIcon />
-                )}
-            </button>
+        <div className="absolute top-24 right-4 md:top-28 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
+            <SharedCanvasControls 
+                onCenterView={handleCenterView}
+                onZoomIn={() => handleZoom('in')}
+                onZoomOut={() => handleZoom('out')}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={toggleFullscreen}
+                // Optional: If you prefer this file to keep them strictly vertical like it was before,
+                // you can uncomment the line below. Otherwise, they will beautifully align horizontally on desktop!
+                // className="flex flex-col gap-2 pointer-events-auto"
+            />
         </div>
 
         {/* NOTIFICATIONS */}

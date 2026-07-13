@@ -6,10 +6,10 @@ import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelDa
 import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 import { toast, ToastContainer } from './ui/Toast';
-import { CenterViewIcon, ZoomOutIcon, ZoomInIcon, FullscreenEnterIcon, FullscreenExitIcon } from './ui/Icons';
 import { useSidebar } from '../hooks/useSidebar';
 import { SharedSidebar } from './SharedSidebar';
 import { SharedWorkspaceSlider } from './SharedWorkspaceSlider';
+import { SharedCanvasControls } from './SharedCanvasControls';
 
 interface Props {
   levelData: LevelData;
@@ -650,24 +650,13 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2 pointer-events-auto">
-            <button onClick={handleCenterView} title="Center View" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-                <CenterViewIcon />
-            </button>
-            <button onClick={() => handleZoom('out')} title="Zoom Out" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-                <ZoomOutIcon />
-            </button>
-            <button onClick={() => handleZoom('in')} title="Zoom In" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-                <ZoomInIcon />
-            </button>
-            <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 md:w-11 md:h-11 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95`}>
-                {isFullscreen ? (
-                  <FullscreenExitIcon />
-                ) : (
-                  <FullscreenEnterIcon />
-                )}
-            </button>
-          </div>
+          <SharedCanvasControls 
+              onCenterView={handleCenterView}
+              onZoomIn={() => handleZoom('in')}
+              onZoomOut={() => handleZoom('out')}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+          />
         </div>
 
         {/* BOTTOM UI STACK */}

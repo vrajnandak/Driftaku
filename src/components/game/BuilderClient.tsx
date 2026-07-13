@@ -5,10 +5,10 @@ import * as d3 from 'd3-force';
 import { supabase, getLocalPlayerId } from '../../lib/supabase';
 import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type NodeVisuals } from '../../types/game';
 import { toast, ToastContainer } from '../ui/Toast';
-import { CenterViewIcon, FullscreenEnterIcon, FullscreenExitIcon, ZoomInIcon, ZoomOutIcon } from '../ui/Icons';
 import { useSidebar } from '../../hooks/useSidebar';
 import { SharedSidebar } from '../SharedSidebar';
 import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
+import { SharedCanvasControls } from '../SharedCanvasControls';
 
 interface Props {
   roomId: string;
@@ -906,24 +906,13 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
               </div>
             )}
             
-            <div className="flex flex-col md:flex-row gap-2 pointer-events-auto">
-                <button onClick={handleCenterView} title="Center View" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
-                    <CenterViewIcon />
-                </button>
-                <button onClick={handleZoomOut} title="Zoom Out" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
-                    <ZoomOutIcon />
-                </button>
-                <button onClick={handleZoomIn} title="Zoom In" className="w-10 h-10 md:w-11 md:h-11 bg-slate-900/90 border border-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all backdrop-blur-md shadow-lg active:scale-95">
-                    <ZoomInIcon />
-                </button>
-                <button onClick={toggleFullscreen} title="Fullscreen" className={`w-10 h-10 md:w-11 md:h-11 ${isFullscreen ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-900/90 text-slate-400 border-white/10 hover:text-white hover:bg-slate-800'} border rounded-xl flex items-center justify-center transition-all backdrop-blur-md shadow-lg active:scale-95`}>
-                    {isFullscreen ? (
-                        <FullscreenExitIcon />
-                    ) : (
-                        <FullscreenEnterIcon />
-                    )}
-                </button>
-            </div>
+            <SharedCanvasControls 
+                onCenterView={handleCenterView}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={toggleFullscreen}
+            />
         </div>
 
         {/* SUBMISSION INDICATOR (Not Solvable) */}
