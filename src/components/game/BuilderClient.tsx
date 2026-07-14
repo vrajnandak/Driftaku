@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import * as d3 from 'd3-force';
 import { supabase, getLocalPlayerId } from '../../lib/supabase';
-import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type NodeVisuals } from '../../types/game';
+import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode } from '../../types/game';
 import { toast, ToastContainer } from '../ui/Toast';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useFullscreen } from '../../hooks/useFullscreen';
 import { useViewportControls } from '../../hooks/useViewportControls';
+import { usePixiGraph, setupNodeDrag } from '../../hooks/usePixiGraph';
 import { SharedSidebar } from '../SharedSidebar';
 import { SharedWorkspaceSlider } from '../SharedWorkspaceSlider';
 import { SharedCanvasControls } from '../SharedCanvasControls';
@@ -17,12 +16,7 @@ interface Props {
 }
 
 type ToolType = 'move' | 'set_start' | 'set_target' | 'toggle_edge';
-
-interface GraphEdge {
-  id: string;
-  source: GameNode;
-  target: GameNode;
-}
+interface GraphEdge { id: string; source: GameNode; target: GameNode; }
 
 const BuilderClient: React.FC<Props> = ({ roomId }) => {
   // --- LAZY LOAD HANDSHAKE DATA ---
@@ -38,22 +32,13 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       }
   }, [roomId]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Viewport | null>(null);
   
   // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
-
-  // --- REFS ---
-  const appRef = useRef<PIXI.Application | null>(null);
-  const viewportRef = useRef<Viewport | null>(null);
-  const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
-  const nodeLayerRef = useRef<PIXI.Container | null>(null);
-  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-  const spriteMap = useRef<Record<number, NodeVisuals>>({});
-
-  // Viewport Controls Hook
   const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
   // --- STATE ---
@@ -63,7 +48,25 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const [targetNodeId, setTargetNodeId] = useState<number | null>(null);
   
   // Edge States
-  const [availableEdges, setAvailableEdges] = useState<GraphEdge[]>([]);
+//   const [availableEdges, setAvailableEdges] = useState<GraphEdge[]>([]);
+    // Derived synchronously to prevent d3 state tearing
+    const availableEdges = useMemo(() => {
+        const currentEdges: GraphEdge[] = [];
+        for (let i = 0; i < workspace.length; i++) {
+            for (let j = i + 1; j < workspace.length; j++) {
+                if (workspace[i].connections.includes(workspace[j].id)) {
+                    const edgeId = [workspace[i].id, workspace[j].id].sort((a, b) => a - b).join('::');
+                    currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
+                }
+            }
+        }
+        return currentEdges;
+    }, [workspace]);
+
+    // Clean up selected edges if an available edge was removed
+    useEffect(() => {
+        setSelectedEdges(prev => prev.filter(edgeId => availableEdges.some(e => e.id === edgeId)));
+    }, [availableEdges]);
   const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
   const [edgeSourceId, setEdgeSourceId] = useState<number | null>(null);
   
@@ -92,17 +95,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         setTimeLeft(builderData.config.buildTime);
     }
   }, [builderData]);
-
-  const stateRef = useRef({
-    tool: 'move' as ToolType,
-    startNodeId: null as number | null,
-    targetNodeId: null as number | null,
-    edgeSourceId: null as number | null,
-    workspace: [] as GameNode[],
-    availableEdges: [] as GraphEdge[],
-    selectedEdges: [] as string[],
-    isSolvable: false
-  });
 
   useEffect(() => {
     if (abPathLength > abTotalNodes) setAbPathLength(abTotalNodes);
@@ -141,6 +133,17 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     return false;
   }, [startNodeId, targetNodeId, selectedEdges]);
 
+  const stateRef = useRef({
+    tool: 'move' as ToolType,
+    startNodeId: null as number | null,
+    targetNodeId: null as number | null,
+    edgeSourceId: null as number | null,
+    workspace: [] as GameNode[],
+    availableEdges: [] as GraphEdge[],
+    selectedEdges: [] as string[],
+    isSolvable: false
+  });
+
   useEffect(() => {
     stateRef.current = { tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable };
   }, [tool, startNodeId, targetNodeId, edgeSourceId, workspace, availableEdges, selectedEdges, isSolvable]);
@@ -148,6 +151,96 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   useEffect(() => {
     setIsModalExpanded(false);
   }, [infoModalNode]);
+
+  // --- SYNC AVAILABLE EDGES ---
+//   useEffect(() => {
+//     const currentEdges: GraphEdge[] = [];
+//     for (let i = 0; i < workspace.length; i++) {
+//         for (let j = i + 1; j < workspace.length; j++) {
+//             if (workspace[i].connections.includes(workspace[j].id)) {
+//                 const edgeId = [workspace[i].id, workspace[j].id].sort((a, b) => a - b).join('::');
+//                 currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
+//             }
+//         }
+//     }
+//     setAvailableEdges(currentEdges);
+//     setSelectedEdges(prev => prev.filter(edgeId => currentEdges.some(e => e.id === edgeId)));
+//   }, [workspace]);
+
+  // --- PIXI ENGINE HOOK ---
+  const imageUrls = useMemo(() => builderData ? builderData.nodes.map((n: GameNode) => n.image).filter(Boolean) as string[] : [], [builderData]);
+  const mappedLinks = useMemo(() => availableEdges.map(e => ({ source: e.source.id, target: e.target.id })), [availableEdges]);
+
+  const { simulationRef } = usePixiGraph({
+      containerNode,
+      viewportRef,
+      imageUrls,
+      resetTargetZoom,
+      workspaceNodes: workspace,
+      links: mappedLinks,
+      onDraw: (ticker, linkLayer, sprites) => {
+          linkLayer.clear();
+          
+          stateRef.current.availableEdges.forEach(edge => {
+              if (edge.source.x == null || edge.source.y == null || edge.target.x == null || edge.target.y == null) return;
+              
+              const isSelected = stateRef.current.selectedEdges.includes(edge.id);
+              linkLayer.moveTo(edge.source.x, edge.source.y).lineTo(edge.target.x, edge.target.y).stroke({ 
+                  width: isSelected ? 5 : 2, 
+                  color: isSelected ? 0x6366f1 : 0x334155,
+                  alpha: isSelected ? 1 : 0.4 
+              });
+          });
+
+          stateRef.current.workspace.forEach(node => {
+            const vis = sprites[node.id];
+            if (vis && node.x != null && node.y != null) {
+              vis.container.x = node.x; vis.container.y = node.y;
+
+              const isStart = stateRef.current.startNodeId === node.id;
+              const isTarget = stateRef.current.targetNodeId === node.id;
+              const isEdgeSource = stateRef.current.edgeSourceId === node.id;
+              
+              let strokeColor = NODE_COLORS[node.type] || 0x334155;
+              let strokeWidth = 2;
+
+              if (isEdgeSource) { strokeColor = 0xf59e0b; strokeWidth = 6; } 
+              else if (isStart) { strokeColor = SPECIAL_NODE_COLORS.Start; strokeWidth = 5; } 
+              else if (isTarget) { strokeColor = SPECIAL_NODE_COLORS.Target; strokeWidth = 5; }
+
+              vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
+            }
+          });
+      },
+      onNodePointerDown: (node, e) => {
+          const currentTool = stateRef.current.tool;
+          
+          if (currentTool === 'set_start') {
+              if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
+              else { setStartNodeId(node.id); if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null); }
+              setEdgeSourceId(null);
+          } else if (currentTool === 'set_target') {
+              if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
+              else { setTargetNodeId(node.id); if (stateRef.current.startNodeId === node.id) setStartNodeId(null); }
+              setEdgeSourceId(null);
+          } else if (currentTool === 'toggle_edge') {
+              if (!stateRef.current.edgeSourceId) {
+                  setEdgeSourceId(node.id);
+              } else {
+                  if (stateRef.current.edgeSourceId === node.id) { setEdgeSourceId(null); return; }
+                  const edgeId = [stateRef.current.edgeSourceId, node.id].sort((a, b) => a - b).join('::');
+                  if (stateRef.current.availableEdges.some(e => e.id === edgeId)) {
+                      setSelectedEdges(prev => prev.includes(edgeId) ? prev.filter(id => id !== edgeId) : [...prev, edgeId]);
+                  }
+                  setEdgeSourceId(null);
+              }
+          } else if (currentTool === 'move') {
+              setupNodeDrag(node, e, viewportRef.current, simulationRef.current, (hasDragged) => {
+                  if (!hasDragged) setInfoModalNode(node);
+              });
+          }
+      }
+  });
 
   // --- QUICK DEPLOY NEIGHBOR LOGIC ---
   const handleQuickAddNeighbor = (neighbor: GameNode) => {
@@ -157,8 +250,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       const isDeployed = workspace.some(n => n.id === neighbor.id);
       if (!isDeployed) {
           if (workspace.length >= builderData.config.maxNodes) {
-              toast("Maximum graph size reached", "error");
-              return;
+              toast("Maximum graph size reached", "error"); return;
           }
           const spawnX = (infoModalNode.x || 1000) + (Math.random() * 100 - 50);
           const spawnY = (infoModalNode.y || 1000) + (Math.random() * 100 - 50);
@@ -247,10 +339,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             const d = depthMap.get(curr)!;
             maxDepth = Math.max(maxDepth, d);
             
-            if (d === targetDepth) {
-                candidates.push(curr);
-                continue; 
-            }
+            if (d === targetDepth) { candidates.push(curr); continue; }
             
             (adj.get(curr) || []).forEach(n => {
                 if (!depthMap.has(n)) { depthMap.set(n, d + 1); q.push(n); }
@@ -456,18 +545,18 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                   intendedPath: opponentGraph.intendedPath
               };
 
-                const solveStorageKey = `driftaku_solve_${roomId}`;
-                const solveStorageValue = JSON.stringify(readySolveData);
+              const solveStorageKey = `driftaku_solve_${roomId}`;
+              const solveStorageValue = JSON.stringify(readySolveData);
 
-                const keysToDelete: string[] = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith('driftaku_solve_') && key !== solveStorageKey) {
-                        keysToDelete.push(key);
-                    }
-                }
-                keysToDelete.forEach(key => localStorage.removeItem(key));
-                localStorage.setItem(solveStorageKey, solveStorageValue);
+              const keysToDelete: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i);
+                  if (key && key.startsWith('driftaku_solve_') && key !== solveStorageKey) {
+                      keysToDelete.push(key);
+                  }
+              }
+              keysToDelete.forEach(key => localStorage.removeItem(key));
+              localStorage.setItem(solveStorageKey, solveStorageValue);
               
               if (isOwner && roomData.status !== 'solving') {
                   supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
@@ -527,228 +616,11 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
-  // Wrapper for locate node using the custom hook
   const handleLocateNode = (nodeId: number) => {
       const node = stateRef.current.workspace.find(n => n.id === nodeId);
       if (node && typeof node.x === 'number' && typeof node.y === 'number') {
           handleLocateCoords(node.x, node.y);
       }
-  };
-
-  // --- INITIALIZE CANVAS ---
-  useEffect(() => {
-    if (!builderData || !containerRef.current || appRef.current) return;
-    const app = new PIXI.Application();
-    
-    const init = async () => {
-      await app.init({ resizeTo: containerRef.current!, backgroundColor: 0x020617, antialias: true, resolution: Math.max(1, window.devicePixelRatio || 1), autoDensity: true });
-      containerRef.current?.appendChild(app.canvas);
-      appRef.current = app;
-
-      const imageUrls = builderData.nodes.map((n : GameNode) => n.image).filter(Boolean) as string[];
-      if (imageUrls.length >0) {
-        try {
-            await PIXI.Assets.load(imageUrls);
-        } catch (e) {
-            console.error("Failed to load PIXI assets.", e);
-            toast("Some game assets couldn't be loaded. Please refresh and try again.", "error");
-        }
-      }
-
-      const viewport = new Viewport({
-        screenWidth: app.screen.width, screenHeight: app.screen.height,
-        worldWidth: 2000, worldHeight: 2000, events: app.renderer.events
-      });
-      app.stage.addChild(viewport);
-      viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
-      
-      // Use the reset function from the custom hook
-      viewport.on('wheel', resetTargetZoom);
-      viewport.on('drag-start', resetTargetZoom);
-      viewport.on('pinch-start', resetTargetZoom);
-      
-      viewportRef.current = viewport;
-
-      linkLayerRef.current = new PIXI.Graphics();
-      nodeLayerRef.current = new PIXI.Container();
-      viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
-
-      simulationRef.current = d3.forceSimulation<GameNode>([])
-        .force("charge", d3.forceManyBody().strength(-800))
-        .force("collide", d3.forceCollide().radius(80))
-        .force("center", d3.forceCenter(1000, 1000))
-        .force("x", d3.forceX(1000).strength(0.02))
-        .force("y", d3.forceY(1000).strength(0.02));
-
-      app.ticker.add(() => {
-        if (linkLayerRef.current) {
-            linkLayerRef.current.clear();
-            stateRef.current.availableEdges.forEach(edge => {
-                if (edge.source.x == null || edge.source.y == null || edge.target.x == null || edge.target.y == null) return;
-                
-                const isSelected = stateRef.current.selectedEdges.includes(edge.id);
-                linkLayerRef.current!.moveTo(edge.source.x, edge.source.y)
-                                      .lineTo(edge.target.x, edge.target.y)
-                                      .stroke({ 
-                                          width: isSelected ? 5 : 2, 
-                                          color: isSelected ? 0x6366f1 : 0x334155,
-                                          alpha: isSelected ? 1 : 0.4 
-                                      });
-            });
-        }
-
-        stateRef.current.workspace.forEach(node => {
-          const vis = spriteMap.current[node.id];
-          if (vis && node.x != null && node.y != null) {
-            vis.container.x = node.x; vis.container.y = node.y;
-
-            const isStart = stateRef.current.startNodeId === node.id;
-            const isTarget = stateRef.current.targetNodeId === node.id;
-            const isEdgeSource = stateRef.current.edgeSourceId === node.id;
-            
-            let strokeColor = NODE_COLORS[node.type] || 0x334155;
-            let strokeWidth = 2;
-
-            if (isEdgeSource) {
-                strokeColor = 0xf59e0b; // Amber
-                strokeWidth = 6;
-            } else if (isStart) {
-                strokeColor = SPECIAL_NODE_COLORS.Start;
-                strokeWidth = 5;
-            } else if (isTarget) {
-                strokeColor = SPECIAL_NODE_COLORS.Target;
-                strokeWidth = 5;
-            }
-
-            vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
-          }
-        });
-      });
-    };
-
-    init();
-    return () => app.destroy(true);
-  }, [builderData, resetTargetZoom]);
-
-  // --- SYNC WORKSPACE & EDGES ---
-  useEffect(() => {
-    if (!simulationRef.current || !nodeLayerRef.current) return;
-
-    const currentEdges: GraphEdge[] = [];
-    for (let i = 0; i < workspace.length; i++) {
-        for (let j = i + 1; j < workspace.length; j++) {
-            if (workspace[i].connections.includes(workspace[j].id)) {
-                const edgeId = [workspace[i].id, workspace[j].id].sort((a, b) => a - b).join('::');
-                currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
-            }
-        }
-    }
-    setAvailableEdges(currentEdges);
-    setSelectedEdges(prev => prev.filter(edgeId => currentEdges.some(e => e.id === edgeId)));
-
-    const d3Links = currentEdges.map(e => ({ source: e.source.id, target: e.target.id }));
-    simulationRef.current.nodes(workspace);
-    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
-    simulationRef.current.alpha(1).restart();
-
-    workspace.forEach(node => {
-      if (!spriteMap.current[node.id]) {
-        const vis = createNodeSprite(node);
-        vis.container.x = node.x || 1000; vis.container.y = node.y || 1000;
-        nodeLayerRef.current!.addChild(vis.container);
-        spriteMap.current[node.id] = vis;
-      }
-    });
-
-    Object.keys(spriteMap.current).forEach(idStr => {
-      const id = Number(idStr);
-      if (!workspace.find(n => n.id === id)) {
-        nodeLayerRef.current!.removeChild(spriteMap.current[id].container);
-        delete spriteMap.current[id];
-      }
-    });
-  }, [workspace]);
-
-  // --- NODE SPRITE LOGIC ---
-  const createNodeSprite = (node: GameNode): NodeVisuals => {
-    const container = new PIXI.Container();
-    const bg = new PIXI.Graphics();
-    const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
-    
-    container.addChild(bg, icon);
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-
-    container.on('pointerdown', (e) => {
-      const currentTool = stateRef.current.tool;
-      
-      if (currentTool === 'set_start') {
-          if (stateRef.current.startNodeId === node.id) {
-              setStartNodeId(null);
-          } else {
-              setStartNodeId(node.id);
-              if (stateRef.current.targetNodeId === node.id) setTargetNodeId(null);
-          }
-          setEdgeSourceId(null);
-      } 
-      else if (currentTool === 'set_target') {
-          if (stateRef.current.targetNodeId === node.id) {
-              setTargetNodeId(null);
-          } else {
-              setTargetNodeId(node.id);
-              if (stateRef.current.startNodeId === node.id) setStartNodeId(null);
-          }
-          setEdgeSourceId(null);
-      } 
-      else if (currentTool === 'toggle_edge') {
-          if (!stateRef.current.edgeSourceId) {
-              setEdgeSourceId(node.id);
-          } else {
-              if (stateRef.current.edgeSourceId === node.id) {
-                  setEdgeSourceId(null); return;
-              }
-              const edgeId = [stateRef.current.edgeSourceId, node.id].sort((a, b) => a - b).join('::');
-              const isValid = stateRef.current.availableEdges.some(e => e.id === edgeId);
-              if (isValid) {
-                  setSelectedEdges(prev => prev.includes(edgeId) ? prev.filter(id => id !== edgeId) : [...prev, edgeId]);
-              }
-              setEdgeSourceId(null);
-          }
-      }
-      else if (currentTool === 'move') {
-          const startX = e.global.x; const startY = e.global.y;
-          let hasDragged = false;
-
-          const onMove = (event: PIXI.FederatedPointerEvent) => {
-              if (!viewportRef.current) return;
-              if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) hasDragged = true;
-              const pos = viewportRef.current.toWorld(event.global);
-              node.fx = pos.x; node.fy = pos.y;
-              simulationRef.current?.alpha(0.3).restart();
-          };
-
-          const onUp = () => {
-              node.fx = null; node.fy = null;
-              window.removeEventListener('pointerup', onUp);
-              appRef.current?.canvas.removeEventListener('pointermove', onMove as any);
-              if (!hasDragged) setInfoModalNode(node);
-          };
-
-          appRef.current?.canvas.addEventListener('pointermove', onMove as any);
-          window.addEventListener('pointerup', onUp);
-      }
-    });
-
-    if (node.image) {
-        const tex = PIXI.Assets.get(node.image);
-        if (tex) {
-            const s = new PIXI.Sprite(tex);
-            s.anchor.set(0.5); s.width = s.height = 60;
-            const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
-            s.mask = m; container.addChild(m, s); icon.visible = false;
-        }
-    }
-    return { container, bg, icon };
   };
 
   const deployNode = (node: GameNode) => {
@@ -765,7 +637,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       if (edgeSourceId === nodeId) setEdgeSourceId(null);
   };
   
-  // Helper method for rendering the core tools efficiently in Desktop/Mobile variants
   const renderToolbar = () => (
     <>
         <button 
@@ -843,18 +714,15 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         onRetract={retractNode}
       />
 
-      {/* CANVAS AREA */}
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
         
-        {/* PIXI CANVAS PINNED */}
-        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
+        {/* PIXI CANVAS PINNED (Wired with containerNode ref setter from the custom hook) */}
+        <div ref={setContainerNode} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
 
-        {/* DESKTOP TOOLBAR (Hidden on Mobile) */}
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
             {renderToolbar()}
         </div>
 
-        {/* INSTRUCTIONS & ZOOM CONTROLS */}
         <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
             
             {builderData.config.buildTime > 0 && (
@@ -875,7 +743,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             />
         </div>
 
-        {/* SUBMISSION INDICATOR (Not Solvable) */}
         {!isSolvable && !isWaitingForOpponent && !isPreparingSolve && !isGenerating && (
           <div className="absolute top-20 md:bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none md:top-auto">
              <div className="bg-slate-900/90 text-slate-400 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-lg">
@@ -884,10 +751,8 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
           </div>
         )}
 
-        {/* BOTTOM UI STACK */}
         <div className={`absolute left-4 bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
             
-            {/* RETRACTION LIST */}
             <SharedWorkspaceSlider 
                 nodes={workspace}
                 startNodeId={startNodeId}
@@ -899,13 +764,11 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                 targetLabel="Target Node"
             />
 
-            {/* MOBILE TOOLBAR (Hidden on Desktop) */}
             <div className="md:hidden flex gap-1 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto overflow-x-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {renderToolbar()}
             </div>
         </div>
 
-        {/* LOADING OVERLAYS */}
         { (isWaitingForOpponent || isPreparingSolve || isGenerating || isSubmitting) && (
             <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
                 <div className={`w-12 h-12 md:w-16 md:h-16 border-4 border-t-transparent rounded-full animate-spin mb-4 md:mb-6 ${isGenerating ? 'border-fuchsia-500' : 'border-indigo-500'}`}></div>
@@ -1124,7 +987,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         )}
 
       </div>
-
       <ToastContainer />
     </div>
   );

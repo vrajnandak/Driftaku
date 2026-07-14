@@ -1,14 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as PIXI from 'pixi.js';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Viewport } from 'pixi-viewport';
-import * as d3 from 'd3-force';
-import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type NodeVisuals, type UserLink } from '../types/game';
+import { NODE_COLORS, SPECIAL_NODE_COLORS, TYPE_MAP, type GameNode, type LevelData, type UserLink } from '../types/game';
 import { LegendModal } from './game/modals/LegendModal';
 import { VictoryModal } from './game/modals/VictoryModal';
 import { toast, ToastContainer } from './ui/Toast';
 import { useSidebar } from '../hooks/useSidebar';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useViewportControls } from '../hooks/useViewportControls';
+import { usePixiGraph, setupNodeDrag } from '../hooks/usePixiGraph';
 import { SharedSidebar } from './SharedSidebar';
 import { SharedWorkspaceSlider } from './SharedWorkspaceSlider';
 import { SharedCanvasControls } from './SharedCanvasControls';
@@ -22,22 +21,13 @@ interface Props {
 }
 
 const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTimeout, onWin }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Viewport | null>(null);
   
   // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
-
-  // Pixi/D3 Refs
-  const appRef = useRef<PIXI.Application | null>(null);
-  const viewportRef = useRef<Viewport | null>(null);
-  const simulationRef = useRef<d3.Simulation<GameNode, undefined> | null>(null);
-  const spriteMap = useRef<Record<number, NodeVisuals>>({});
-  const nodeLayerRef = useRef<PIXI.Container | null>(null);
-  const linkLayerRef = useRef<PIXI.Graphics | null>(null);
-
-  // Viewport Controls Hook
   const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
   // Timer state
@@ -56,7 +46,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
   const [uiPath, setUiPath] = useState<number[]>([levelData.metadata.start_node]);
 
-  // --- HINT STATES ---
+  // Hints
   const [hintsLeft, setHintsLeft] = useState(3);
   const [hintedNodeId, setHintedNodeId] = useState<number | null>(null);
   const [hintedEdgeId, setHintedEdgeId] = useState<string | null>(null);
@@ -71,141 +61,61 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     hintedEdgeId: null as string | null
   });
 
-  // Sync state ref
   useEffect(() => {
-    stateRef.current.userLinks = userLinks;
-    stateRef.current.tool = tool;
-    stateRef.current.selectedNodeId = selectedNodeId;
-    stateRef.current.workspaceNodes = workspaceNodes;
-    stateRef.current.hintedNodeId = hintedNodeId;
-    stateRef.current.hintedEdgeId = hintedEdgeId;
+    stateRef.current = { ...stateRef.current, userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId };
   }, [userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId]);
 
-  // Wrapper for locate node using the custom hook
   const handleLocateNode = (nodeId: number) => {
     const node = stateRef.current.workspaceNodes.find(n => n.id === nodeId);
-    if (node && typeof node.x === 'number' && typeof node.y === 'number') {
-        handleLocateCoords(node.x, node.y);
-    }
+    if (node && typeof node.x === 'number' && typeof node.y === 'number') handleLocateCoords(node.x, node.y);
   };
 
-  // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
-  // --- 1. INITIALIZATION & ROBUST RESIZE LOGIC ---
+  // --- INITIALIZATION ---
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Safety flags to prevent React async unmount race conditions
-    let isMounted = true;
-    let isInitialized = false;
+    const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
+    const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
+    const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
     
-    const app = new PIXI.Application();
-    let resizeObserver: ResizeObserver | null = null;
-    
-    const setup = async () => {
-      try {
-        PIXI.Assets.setPreferences({ preferWorkers: false, crossOrigin: 'anonymous' });
-        
-        await app.init({ 
-          resizeTo: containerRef.current!, 
-          backgroundColor: 0x020617, 
-          antialias: true,
-          resolution: Math.max(1, window.devicePixelRatio || 1),
-          autoDensity: true
-        });
+    setWorkspaceNodes([startNode, endNode]);
+    setWarehouseNodes(others);
+  }, [levelData]);
 
-        isInitialized = true;
+  // --- PIXI ENGINE & SCENE HOOK ---
+  const imageUrls = useMemo(() => levelData.nodes.map(n => n.image).filter(Boolean) as string[], [levelData]);
+  const mappedLinks = useMemo(() => userLinks.map(l => ({ source: l.sourceId, target: l.targetId })), [userLinks]);
 
-        // SAFEGUARD: If component unmounted while awaiting PIXI, safely abort
-        if (!isMounted || !containerRef.current) {
-          app.destroy(true);
-          return;
-        }
-
-        containerRef.current.appendChild(app.canvas);
-        appRef.current = app;
-
-        const imageUrls = levelData.nodes.map(n => n.image).filter(Boolean) as string[];
-        if (imageUrls.length > 0) {
-          try { await PIXI.Assets.load(imageUrls); } 
-          catch (e) { toast("Some game assets couldn't be loaded.", "warning"); }
-        }
-
-        // SAFEGUARD 2: Asset loading is also async, check again
-        if (!isMounted || !containerRef.current) {
-          app.destroy(true);
-          return;
-        }
-
-        const viewport = new Viewport({
-          screenWidth: containerRef.current.clientWidth,
-          screenHeight: containerRef.current.clientHeight,
-          worldWidth: 2000,
-          worldHeight: 2000,
-          events: app.renderer.events
-        });
-        
-        app.stage.addChild(viewport);
-        viewport.drag().pinch().wheel().decelerate().moveCenter(1000, 1000);
-        
-        viewport.on('zoomed', resetTargetZoom);
-        viewport.on('drag-start', resetTargetZoom);
-        viewport.on('pinch-start', resetTargetZoom);
-        viewport.on('wheel', resetTargetZoom);
-        
-        viewportRef.current = viewport;
-
-        resizeObserver = new ResizeObserver(() => {
-            if (appRef.current && viewportRef.current && containerRef.current) {
-                appRef.current.resize();
-                viewportRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-            }
-        });
-        resizeObserver.observe(containerRef.current);
-
-        linkLayerRef.current = new PIXI.Graphics();
-        nodeLayerRef.current = new PIXI.Container();
-        viewport.addChild(linkLayerRef.current, nodeLayerRef.current);
-
-        simulationRef.current = d3.forceSimulation<GameNode>([])
-          .force("charge", d3.forceManyBody().strength(-800))
-          .force("collide", d3.forceCollide().radius(80))
-          .force("center", d3.forceCenter(1000, 1000))
-          .force("x", d3.forceX(1000).strength(0.02))
-          .force("y", d3.forceY(1000).strength(0.02));
-
-        app.ticker.add((ticker) => {
-          if (!linkLayerRef.current || !isMounted) return;
+  const { simulationRef, spriteMap } = usePixiGraph({
+      containerNode,
+      viewportRef,
+      imageUrls,
+      resetTargetZoom,
+      workspaceNodes,
+      links: mappedLinks,
+      onDraw: (ticker, linkLayer, sprites) => {
+          linkLayer.clear();
           
-          linkLayerRef.current.clear();
-          
-          // Draw User Links
           stateRef.current.userLinks.forEach(link => {
             const s = stateRef.current.workspaceNodes.find(n => n.id === link.sourceId);
             const t = stateRef.current.workspaceNodes.find(n => n.id === link.targetId);
             if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
-              linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
-                .stroke({ width: 4, color: 0x6366f1, alpha: 1 });
+              linkLayer.moveTo(s.x, s.y).lineTo(t.x, t.y).stroke({ width: 4, color: 0x6366f1, alpha: 1 });
             }
           });
 
-          // Draw Hinted Edge Guide
           if (stateRef.current.hintedEdgeId) {
               const [uId, vId] = stateRef.current.hintedEdgeId.split('::').map(Number);
               const s = stateRef.current.workspaceNodes.find(n => n.id === uId);
               const t = stateRef.current.workspaceNodes.find(n => n.id === vId);
               if (s && t && s.x != null && s.y != null && t.x != null && t.y != null) {
                   const pulse = Math.sin(ticker.lastTime * 0.01) * 0.3 + 0.7; 
-                  linkLayerRef.current!.moveTo(s.x, s.y).lineTo(t.x, t.y)
-                    .stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); 
+                  linkLayer.moveTo(s.x, s.y).lineTo(t.x, t.y).stroke({ width: 6, color: 0xf59e0b, alpha: pulse }); 
               }
           }
 
-          // Draw Nodes
           stateRef.current.workspaceNodes.forEach(node => {
-            const vis = spriteMap.current[node.id];
+            const vis = sprites[node.id];
             if(vis && node.x != null && node.y != null) {
-              vis.container.x = node.x;
-              vis.container.y = node.y;
+              vis.container.x = node.x; vis.container.y = node.y;
               
               const isCurrent = stateRef.current.selectedNodeId === node.id;
               const isTarget = node.id === levelData.metadata.end_node;
@@ -215,93 +125,37 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
               let strokeColor = NODE_COLORS[node.type] || 0x334155;
               let strokeWidth = 2;
 
-              if (isCurrent) {
-                  strokeColor = 0xf59e0b;
-                  strokeWidth = 6;
-              } else if (isHinted) {
-                  const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5;
-                  strokeColor = 0xf59e0b; 
-                  strokeWidth = pulse;
-              } else if (isStart) {
-                  strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff;
-                  strokeWidth = 5;
-              } else if (isTarget) {
-                  strokeColor = SPECIAL_NODE_COLORS.Target || 0x22d3ee;
-                  strokeWidth = 5;
-              }
+              if (isCurrent) { strokeColor = 0xf59e0b; strokeWidth = 6; } 
+              else if (isHinted) { const pulse = Math.sin(ticker.lastTime * 0.01) * 2 + 5; strokeColor = 0xf59e0b; strokeWidth = pulse; } 
+              else if (isStart) { strokeColor = SPECIAL_NODE_COLORS.Start || 0xffffff; strokeWidth = 5; } 
+              else if (isTarget) { strokeColor = SPECIAL_NODE_COLORS.Target || 0x22d3ee; strokeWidth = 5; }
 
               vis.bg.clear().circle(0, 0, 33).fill(0x0f172a).stroke({ width: strokeWidth, color: strokeColor });
             }
           });
-        });
+      },
+      onNodePointerDown: (node, e) => {
+          setHintedNodeId(null);
+          setHintedEdgeId(null);
 
-        const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
-        const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
-        const others = levelData.nodes.filter(n => n.id !== startNode.id && n.id !== endNode.id);
-        
-        setWorkspaceNodes([startNode, endNode]);
-        setWarehouseNodes(others);
-      } catch (err) {
-        console.error("PIXI Setup Error: ", err);
+          if (stateRef.current.tool === 'link') {
+            handleLinkAttempt(node.id);
+          } else {
+            if (activeInfo !== null) return;
+            setupNodeDrag(node, e, viewportRef.current, simulationRef.current, (hasDragged) => {
+                if (!hasDragged && spriteMap.current[node.id]) showNodeInfo(node, spriteMap.current[node.id].container);
+            });
+          }
       }
-    };
+  });
 
-    setup();
-
-    return () => {
-      isMounted = false; // Flag that component has unmounted
-      if (resizeObserver) resizeObserver.disconnect();
-      
-      // Only destroy if app.init() actually finished successfully
-      if (isInitialized) {
-        app.destroy(true);
-      }
-    };
-  }, [levelData, resetTargetZoom]);
-
-  // --- 2. SYNC EFFECT ---
+  // --- DYNAMIC TIMER ---
   useEffect(() => {
-    if (!simulationRef.current || !nodeLayerRef.current) return;
-
-    stateRef.current.workspaceNodes = workspaceNodes;
-    
-    const d3Links = userLinks.map(l => ({ source: l.sourceId, target: l.targetId }));
-    simulationRef.current.nodes(workspaceNodes);
-    simulationRef.current.force("link", d3.forceLink(d3Links).id((d: any) => d.id).distance(150));
-    simulationRef.current.alpha(1).restart();
-
-    workspaceNodes.forEach(node => {
-      if (!spriteMap.current[node.id]) {
-        const vis = createNodeSprite(node);
-        vis.container.x = node.x || 1000 + (Math.random() * 200 - 100);
-        vis.container.y = node.y || 1000 + (Math.random() * 200 - 100);
-        
-        nodeLayerRef.current!.addChild(vis.container);
-        spriteMap.current[node.id] = vis;
-      }
-    });
-
-    Object.keys(spriteMap.current).forEach(idStr => {
-      const id = Number(idStr);
-      if (!workspaceNodes.find(n => n.id === id)) {
-        nodeLayerRef.current!.removeChild(spriteMap.current[id].container);
-        delete spriteMap.current[id];
-      }
-    });
-  }, [workspaceNodes, userLinks]);
-
-  // --- 3. DYNAMIC TIMER (COUNTUP OR COUNTDOWN) ---
-  useEffect(() => {
-    if (isWon) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
-    }
+    if (isWon) { if (timerRef.current) clearInterval(timerRef.current); return; }
 
     stateRef.current.startTime = Date.now();
-    
     timerRef.current = window.setInterval(() => {
       const elapsed = (Date.now() - stateRef.current.startTime) / 1000;
-      
       if (timeLimit && timeLimit > 0) {
           const remaining = Math.max(0, timeLimit - elapsed);
           const minutes = Math.floor(remaining / 60).toString().padStart(2, '0');
@@ -309,7 +163,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           setTimerDisplay(`${minutes}:${seconds}`);
           
           setTimeDanger(remaining <= 10 && remaining > 0);
-
           if (remaining <= 0) {
               if (timerRef.current) clearInterval(timerRef.current);
               if (onTimeout) onTimeout();
@@ -324,87 +177,10 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isWon, timeLimit, onTimeout]);
 
-  // --- NODE SPRITE & DOM DRAG LOGIC ---
-  // --- NODE SPRITE & DOM DRAG LOGIC ---
-  const createNodeSprite = (node: GameNode): NodeVisuals => {
-    const container = new PIXI.Container();
-    const bg = new PIXI.Graphics();
-    const icon = new PIXI.Graphics().circle(0, 0, 20).fill(0x1e293b);
-    
-    container.addChild(bg, icon);
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-
-    container.on('pointerdown', (e) => {
-      // 🚨 CRITICAL FOR MOBILE: Stops the camera from panning while dragging a node!
-      e.stopPropagation(); 
-
-      setHintedNodeId(null);
-      setHintedEdgeId(null);
-
-      if (stateRef.current.tool === 'link') {
-        handleLinkAttempt(node.id);
-      } else {
-        if (activeInfo !== null) return;
-        
-        // Use global PIXI coordinates (Works flawlessly on mouse and touch)
-        const startX = e.global.x; 
-        const startY = e.global.y;
-        let hasDragged = false;
-
-        const onMove = (event: PIXI.FederatedPointerEvent) => {
-          if(!viewportRef.current) return;
-
-          if (Math.hypot(event.global.x - startX, event.global.y - startY) > 5) {
-              hasDragged = true;
-          }
-          
-          const movePos = viewportRef.current.toWorld(event.global.x, event.global.y);
-          node.fx = movePos.x;
-          node.fy = movePos.y;
-          simulationRef.current?.alpha(0.3).restart();
-        };
-
-        const onUp = () => {
-          node.fx = null;
-          node.fy = null;
-          
-          // Clean up PIXI listeners
-          if (viewportRef.current) {
-              viewportRef.current.off('pointermove', onMove);
-              viewportRef.current.off('pointerup', onUp);
-              viewportRef.current.off('pointerupoutside', onUp);
-          }
-
-          if (!hasDragged) showNodeInfo(node, container);
-        };
-
-        // Attach listeners to the viewport so dragging works even if cursor leaves the node sprite
-        if (viewportRef.current) {
-            viewportRef.current.on('pointermove', onMove);
-            viewportRef.current.on('pointerup', onUp);
-            viewportRef.current.on('pointerupoutside', onUp);
-        }
-      }
-    });
-
-    if (node.image) {
-      const tex = PIXI.Assets.get(node.image);
-      if (tex) {
-        const s = new PIXI.Sprite(tex);
-        s.anchor.set(0.5); s.width = s.height = 60;
-        const m = new PIXI.Graphics().circle(0, 0, 30).fill(0xffffff);
-        s.mask = m; container.addChild(m, s); icon.visible = false;
-      }
-    }
-    return { container, bg, icon };
-  };
-
-  // --- 4. HINT ALGORITHM ---
+  // --- HINT ALGORITHM ---
   const handleRequestHint = () => {
     if (hintsLeft <= 0 || !intendedPath || intendedPath.length === 0) {
-      toast("No hints available or path missing!", "warning");
-      return;
+      toast("No hints available or path missing!", "warning"); return;
     }
 
     const allIntendedNodes = Array.from(new Set(intendedPath.flatMap(e => e.split('::').map(Number))));
@@ -414,8 +190,7 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         !workspaceNodes.some(n => n.id === id) &&
         intendedPath.some(e => {
             const [u, v] = e.split('::').map(Number);
-            return (u === id && workspaceNodes.some(n => n.id === v)) || 
-                   (v === id && workspaceNodes.some(n => n.id === u));
+            return (u === id && workspaceNodes.some(n => n.id === v)) || (v === id && workspaceNodes.some(n => n.id === u));
         })
     );
 
@@ -433,42 +208,32 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     const unlinkedEdge = intendedPath.find(edgeId => {
         const [u, v] = edgeId.split('::').map(Number);
         const bothDeployed = workspaceNodes.some(n => n.id === u) && workspaceNodes.some(n => n.id === v);
-        const isLinked = userLinks.some(l => 
-            (l.sourceId === u && l.targetId === v) || 
-            (l.sourceId === v && l.targetId === u)
-        );
+        const isLinked = userLinks.some(l => (l.sourceId === u && l.targetId === v) || (l.sourceId === v && l.targetId === u));
         return bothDeployed && !isLinked;
     });
 
     if (unlinkedEdge) {
         setHintedEdgeId(unlinkedEdge);
         setHintsLeft(prev => prev - 1);
-
         const [uId, vId] = unlinkedEdge.split('::').map(Number);
         const nodeA = workspaceNodes.find(n => n.id === uId);
         const nodeB = workspaceNodes.find(n => n.id === vId);
         
         if (nodeA && nodeB && nodeA.x != null && nodeA.y != null && nodeB.x != null && nodeB.y != null) {
-            const centerX = (nodeA.x + nodeB.x) / 2;
-            const centerY = (nodeA.y + nodeB.y) / 2;
-            handleLocateCoords(centerX, centerY);
+            handleLocateCoords((nodeA.x + nodeB.x) / 2, (nodeA.y + nodeB.y) / 2);
         }
         return;
     }
-
     toast("You have deployed and linked all optimal nodes! Connect the final path to win.", "success");
   };
 
-  // --- 5. HANDLERS ---
+  // --- HANDLERS ---
   const handleLinkAttempt = (targetId: number) => {
     const currentSelectedId = stateRef.current.selectedNodeId;
-
     if (!currentSelectedId) {
-      stateRef.current.selectedNodeId = targetId;
       setSelectedNodeId(targetId);
     } else {
       if (currentSelectedId === targetId) {
-        stateRef.current.selectedNodeId = null;
         setSelectedNodeId(null);
         return;
       }
@@ -478,16 +243,11 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       const isConnected = nodeA?.connections.includes(targetId) || nodeB?.connections.includes(currentSelectedId);
 
       if (isConnected) {
-        const linkExists = stateRef.current.userLinks.some(
-          l => (l.sourceId === currentSelectedId && l.targetId === targetId) || 
-               (l.sourceId === targetId && l.targetId === currentSelectedId)
-        );
-
+        const linkExists = stateRef.current.userLinks.some(l => (l.sourceId === currentSelectedId && l.targetId === targetId) || (l.sourceId === targetId && l.targetId === currentSelectedId));
         if (linkExists) {
           toast("This connection already exists!", "warning");
         } else {
-          const newLink = { sourceId: currentSelectedId, targetId };
-          const updatedLinks = [...stateRef.current.userLinks, newLink];
+          const updatedLinks = [...stateRef.current.userLinks, { sourceId: currentSelectedId, targetId }];
           setUserLinks(updatedLinks);
           checkWinCondition(updatedLinks);
           setHintedEdgeId(null); 
@@ -495,16 +255,12 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
       } else {
         toast(`No direct connection found between ${nodeA?.name || currentSelectedId} and ${nodeB?.name || targetId}!`, "warning");
       }
-      
-      stateRef.current.selectedNodeId = null;
       setSelectedNodeId(null);
     }
   };
 
-  const deployNode = (node: GameNode) => {
-    setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100 - 50) }]);
-  };
-
+  const deployNode = (node: GameNode) => setWorkspaceNodes(prev => [...prev, { ...node, x: 1000 + (Math.random() * 100), y: 1000 + (Math.random() * 100 - 50) }]);
+  
   const retractNode = (nodeId: number) => {
     if (nodeId === levelData.metadata.start_node || nodeId === levelData.metadata.end_node) return;
     setWorkspaceNodes(prev => prev.filter(n => n.id !== nodeId));
@@ -525,7 +281,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     
     while (queue.length > 0) {
       const [curr, path] = queue.shift()!;
-      
       if (curr === levelData.metadata.end_node) {
         const finalTime = ((Date.now() - stateRef.current.startTime) / 1000);
         if(timerRef.current) clearInterval(timerRef.current);
@@ -535,7 +290,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         onWin(finalTime); 
         return;
       }
-      
       (adj.get(curr) || []).forEach(neighbor => {
         if (!visited.has(neighbor)) {
           visited.add(neighbor);
@@ -545,59 +299,25 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     }
   };
 
-  const showNodeInfo = (node: GameNode, container: PIXI.Container) => {
+  const showNodeInfo = (node: GameNode, container: any) => {
     if (!viewportRef.current) return;
     viewportRef.current.pause = true; 
     const screenPos = viewportRef.current.toScreen(container.x, container.y);
-    
-    setActiveInfo({
-      name: node.name,
-      type: node.type,
-      x: screenPos.x,
-      y: screenPos.y
-    });
-
-    setTimeout(() => {
-      setActiveInfo(null);
-      viewportRef.current!.pause = false;
-    }, 3000);
+    setActiveInfo({ name: node.name, type: node.type, x: screenPos.x, y: screenPos.y });
+    setTimeout(() => { setActiveInfo(null); viewportRef.current!.pause = false; }, 3000);
   };
 
   const renderToolbar = () => (
     <>
-        <button 
-            onClick={() => {setTool('select'); stateRef.current.tool='select';}}
-            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-        >
-            Move
-        </button>
+        <button onClick={() => setTool('select')} className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'select' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>Move</button>
         <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
-        <button 
-            onClick={() => {setTool('link'); stateRef.current.tool='link';}}
-            className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-        >
-            Link {selectedNodeId && "(!)"}
-        </button>
+        <button onClick={() => setTool('link')} className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${tool === 'link' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>Link {selectedNodeId && "(!)"}</button>
         <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
-        <button 
-            onClick={() => setIsLegendOpen(true)}
-            className="px-4 py-2.5 md:px-5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all flex-none shrink-0"
-        >
-            ⓘ
-        </button>
-        
-        {/* DYNAMIC HINT BUTTON */}
+        <button onClick={() => setIsLegendOpen(true)} className="px-4 py-2.5 md:px-5 rounded-xl text-xs font-black bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all flex-none shrink-0">ⓘ</button>
         {intendedPath && intendedPath.length > 0 && (
             <>
                 <div className="w-px h-6 bg-white/10 mx-1 md:mx-2 self-center shrink-0" />
-                <button 
-                    onClick={handleRequestHint}
-                    disabled={hintsLeft <= 0}
-                    className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0
-                      ${hintsLeft > 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
-                >
-                    💡 ({hintsLeft})
-                </button>
+                <button onClick={handleRequestHint} disabled={hintsLeft <= 0} className={`flex-1 md:flex-none px-4 py-2.5 md:px-5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 ${hintsLeft > 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>💡 ({hintsLeft})</button>
             </>
         )}
     </>
@@ -619,87 +339,45 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         onRetract={retractNode}
       />
 
-      {/* FIXED CANVAS WRAPPER */}
       <div className="flex-1 relative h-full w-full overflow-hidden transition-all duration-300">
-        
-        {/* PIXI CANVAS PINNED */}
-        <div ref={containerRef} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
+        <div ref={setContainerNode} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
 
-        {/* DESKTOP TOOLBAR */}
-        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-max">
-            {renderToolbar()}
-        </div>
+        <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-max">{renderToolbar()}</div>
 
-        {/* TOP RIGHT CONTROLS */}
         <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
-          
           <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                {timeLimit && timeLimit > 0 ? 'Time Remaining' : 'Time Elapsed'}
-            </p>
-            <p className={`text-lg md:text-xl font-mono font-bold leading-none mt-0.5 ${timeDanger ? 'text-rose-500 animate-pulse' : 'text-white'}`}>
-                {timerDisplay}
-            </p>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{timeLimit && timeLimit > 0 ? 'Time Remaining' : 'Time Elapsed'}</p>
+            <p className={`text-lg md:text-xl font-mono font-bold leading-none mt-0.5 ${timeDanger ? 'text-rose-500 animate-pulse' : 'text-white'}`}>{timerDisplay}</p>
           </div>
-
           <SharedCanvasControls 
-              onCenterView={handleCenterView}
-              onZoomIn={() => handleZoom('in')}
-              onZoomOut={() => handleZoom('out')}
-              isFullscreen={isFullscreen}
-              onToggleFullscreen={toggleFullscreen}
+              onCenterView={handleCenterView} onZoomIn={() => handleZoom('in')} onZoomOut={() => handleZoom('out')}
+              isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen}
           />
         </div>
 
-        {/* BOTTOM UI STACK */}
         <div className={`absolute bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
-            
-            {/* Retraction Bar */}
             <SharedWorkspaceSlider 
-                nodes={workspaceNodes}
-                startNodeId={levelData.metadata.start_node}
-                targetNodeId={levelData.metadata.end_node}
-                onLocate={handleLocateNode}
-                onRetract={retractNode}
-                hideRetractForSpecialNodes={true}
-                showSubtitles={false}
+                nodes={workspaceNodes} startNodeId={levelData.metadata.start_node} targetNodeId={levelData.metadata.end_node}
+                onLocate={handleLocateNode} onRetract={retractNode} hideRetractForSpecialNodes={true} showSubtitles={false}
             />
-
-            {/* MOBILE TOOLBAR (Hidden on Desktop) */}
-            <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {renderToolbar()}
-            </div>
+            <div className="md:hidden flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto w-full max-w-sm mx-auto overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>{renderToolbar()}</div>
         </div>
 
-        {/* MODALS */}
         {isWon && (
             <div className="absolute inset-0 z-50 pointer-events-auto">
               <VictoryModal 
-                  onNext={() => window.location.href='/'} 
-                  time={parseFloat(timerDisplay)} 
-                  shortestPath={intendedPath?.map(String)} 
-                  userPath={uiPath.map(String)}            
-                  nodes={levelData.nodes}
+                  onNext={() => window.location.href='/'} time={parseFloat(timerDisplay)} shortestPath={intendedPath?.map(String)} 
+                  userPath={uiPath.map(String)} nodes={levelData.nodes}
               />
             </div>
         )}
 
-        {isLegendOpen && (
-            <div className="absolute inset-0 z-50 pointer-events-auto">
-              <LegendModal onClose={() => setIsLegendOpen(false)} />
-            </div>
-        )}
+        {isLegendOpen && ( <div className="absolute inset-0 z-50 pointer-events-auto"><LegendModal onClose={() => setIsLegendOpen(false)} /></div> )}
 
-        {/* FLOATING INFO LABEL */}
         {activeInfo && (
-          <div 
-            className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200 min-w-max"
-            style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}
-          >
+          <div className="absolute z-50 bg-slate-800 border border-indigo-500/50 p-3 rounded-lg shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200 min-w-max" style={{ left: `${activeInfo.x}px`, top: `${activeInfo.y - 80}px`, transform: 'translateX(-50%)' }}>
             <p className="text-white font-bold text-xs">{activeInfo.name}</p>
-            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">
-                {TYPE_MAP[activeInfo.type as keyof typeof TYPE_MAP] || "Unknown"}
-            </p>
+            <p className="text-indigo-400 font-black text-[9px] uppercase tracking-widest">{TYPE_MAP[activeInfo.type as keyof typeof TYPE_MAP] || "Unknown"}</p>
           </div>
         )}
       </div>
