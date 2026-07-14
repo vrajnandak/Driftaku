@@ -18,7 +18,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
 
   const { playerId } = getLocalPlayerId();
 
-  // 1. INITIALIZE, LOAD GRAPH, & GET TIME LIMIT
   useEffect(() => {
     const initMatch = async () => {
       const storedData = localStorage.getItem(`driftaku_solve_${roomId}`);
@@ -44,14 +43,12 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
         return;
       }
 
-      // Fetch Time Limit & Safety check for page reloads
       const { data: roomData } = await supabase.from('rooms').select('config, results, owner_id').eq('id', roomId).single();
       
       if (roomData?.config?.solveTime && roomData.config.solveTime > 0) {
           setSolveTimeLimit(roomData.config.solveTime);
       }
 
-      // If user reloaded the page after finishing, restore their state
       if (roomData?.results) {
           const isOwner = roomData.owner_id === playerId;
           const role = isOwner ? 'owner' : 'guest';
@@ -71,7 +68,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
     initMatch();
   }, [roomId, playerId]);
 
-  // 2. REAL-TIME SUBSCRIPTION FOR RESULTS
   useEffect(() => {
     const channel = supabase.channel(`room_${roomId}_solve`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
@@ -91,7 +87,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
-  // 3. HANDLE WIN (Called by GameClient on success)
   const handleWin = async (finalTime: number) => {
       setMyTime(finalTime);
 
@@ -101,14 +96,12 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       const isOwner = room.owner_id === playerId;
       const role = isOwner ? 'owner' : 'guest';
       
-      // FIX: Use the secure RPC to prevent simultaneous timeout overwrites
       await supabase.rpc('update_room_result', {
           p_room_id: roomId,
           p_role: role,
           p_time: finalTime
       });
 
-      // Instantly check if the other player is already done (fallback if Realtime event drops)
       const { data: checkRoom } = await supabase.from('rooms').select('results, owner_id').eq('id', roomId).single();
       if (checkRoom?.results?.owner !== undefined && checkRoom?.results?.guest !== undefined) {
           setMatchResults({
@@ -119,18 +112,19 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       }
   };
 
-  // 4. HANDLE TIMEOUT
   const handleTimeout = () => {
       const penaltyTime = solveTimeLimit || 9999;
       handleWin(penaltyTime);
   };
 
   const handleClearCacheAndLeave = () => {
+      // Clear up persistent validation stores upon returning
       localStorage.removeItem(`driftaku_solve_${roomId}`);
+      localStorage.removeItem(`driftaku_solve_start_${roomId}`);
+      localStorage.removeItem(`driftaku_hints_left_${roomId}`);
       window.location.href = '/play/friends';
   };
 
-  // --- RENDER STATES ---
   if (error) {
       return (
           <div className="flex flex-col items-center justify-center h-full text-center p-6 bg-slate-950 font-sans">
@@ -147,7 +141,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       return <div className="flex items-center justify-center h-full bg-slate-950 text-indigo-400 font-bold uppercase tracking-widest text-xs animate-pulse">Initializing Web...</div>;
   }
 
-  // --- SHOW MATCH RESULTS IF BOTH FINISHED ---
   if (matchResults) {
       const isOwner = matchResults.ownerId === playerId;
       const myFinalTime = isOwner ? matchResults.ownerTime : matchResults.guestTime;
@@ -199,7 +192,6 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       );
   }
 
-  // --- SHOW WAITING SCREEN IF I WON OR TIMED OUT BUT OPPONENT IS STILL PLAYING ---
   if (myTime) {
       const isTimeout = solveTimeLimit && myTime >= solveTimeLimit;
 
@@ -222,10 +214,10 @@ const FriendsSolveManager: React.FC<Props> = ({ roomId }) => {
       );
   }
 
-  // --- SHOW THE ACTUAL GAME ---
   return (
       <div className="h-full w-full relative">
           <GameClient 
+              roomId={roomId}
               levelData={levelData} 
               intendedPath={intendedPath} 
               timeLimit={solveTimeLimit}    

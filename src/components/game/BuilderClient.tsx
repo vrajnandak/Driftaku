@@ -19,7 +19,6 @@ type ToolType = 'move' | 'set_start' | 'set_target' | 'toggle_edge';
 interface GraphEdge { id: string; source: GameNode; target: GameNode; }
 
 const BuilderClient: React.FC<Props> = ({ roomId }) => {
-  // --- LAZY LOAD HANDSHAKE DATA ---
   const [builderData, setBuilderData] = useState<any>(null);
   const [dataError, setDataError] = useState(false);
 
@@ -36,20 +35,15 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport | null>(null);
   
-  // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
   const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
-  // --- STATE ---
   const [workspace, setWorkspace] = useState<GameNode[]>([]);
   const [tool, setTool] = useState<ToolType>('move');
   const [startNodeId, setStartNodeId] = useState<number | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<number | null>(null);
   
-  // Edge States
-//   const [availableEdges, setAvailableEdges] = useState<GraphEdge[]>([]);
-    // Derived synchronously to prevent d3 state tearing
     const availableEdges = useMemo(() => {
         const currentEdges: GraphEdge[] = [];
         for (let i = 0; i < workspace.length; i++) {
@@ -63,45 +57,72 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         return currentEdges;
     }, [workspace]);
 
-    // Clean up selected edges if an available edge was removed
     useEffect(() => {
         setSelectedEdges(prev => prev.filter(edgeId => availableEdges.some(e => e.id === edgeId)));
     }, [availableEdges]);
+
   const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
   const [edgeSourceId, setEdgeSourceId] = useState<number | null>(null);
-  
-  // UI States
   const [infoModalNode, setInfoModalNode] = useState<GameNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [isModalExpanded, setIsModalExpanded] = useState(false);
   
-  // Auto-Build Modal States
   const [isAutoBuildModalOpen, setIsAutoBuildModalOpen] = useState(false);
   const [abTotalNodes, setAbTotalNodes] = useState<number>(50);
   const [abPathLength, setAbPathLength] = useState<number>(5);
   const [abIsolated, setAbIsolated] = useState<number>(0);
   
-  // Submission & Timer States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWaitingForOpponent, setIsWaitingForOpponent] = useState(false);
   const [isPreparingSolve, setIsPreparingSolve] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false); 
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
+  // --- STRICT VALIDATION INITIALIZATION ---
   useEffect(() => {
     if (builderData) {
         setAbTotalNodes(builderData.config.maxNodes);
         setAbPathLength(Math.min(5, builderData.config.maxNodes));
-        setTimeLeft(builderData.config.buildTime);
+
+        // Check if user already submitted and is just reloading
+        const hasSubmitted = localStorage.getItem(`driftaku_submitted_${roomId}`);
+        if (hasSubmitted === 'true') {
+            setIsWaitingForOpponent(true);
+            supabase.from('rooms').select('*').eq('id', roomId).single().then(({data}) => {
+                if (data && (data.status === 'solving' || (data.graph_a && data.graph_b))) {
+                    prepareSolvePhaseRef.current(data);
+                }
+            });
+            return;
+        }
+        
+        // Enforce strict build timer 
+        if (builderData.config.buildTime > 0) {
+            const buildStartKey = `driftaku_build_start_${roomId}`;
+            let startTs = parseInt(localStorage.getItem(buildStartKey) || '0');
+            
+            if (!startTs) {
+                startTs = Date.now();
+                localStorage.setItem(buildStartKey, startTs.toString());
+            }
+
+            const elapsedSeconds = Math.floor((Date.now() - startTs) / 1000);
+            const remainingTime = Math.max(0, builderData.config.buildTime - elapsedSeconds);
+            
+            setTimeLeft(remainingTime);
+
+            if (remainingTime <= 0) {
+                forceSubmitOnTimeout();
+            }
+        }
     }
-  }, [builderData]);
+  }, [builderData, roomId]);
 
   useEffect(() => {
     if (abPathLength > abTotalNodes) setAbPathLength(abTotalNodes);
     if (abIsolated > abTotalNodes - abPathLength) setAbIsolated(abTotalNodes - abPathLength);
   }, [abTotalNodes, abPathLength, abIsolated]);
 
-  // --- VALIDATION LOGIC ---
   const isSolvable = useMemo(() => {
     if (!startNodeId || !targetNodeId) return false;
     
@@ -152,7 +173,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     setIsModalExpanded(false);
   }, [infoModalNode]);
 
-  // --- PIXI ENGINE HOOK ---
   const imageUrls = useMemo(() => builderData ? builderData.nodes.map((n: GameNode) => n.image).filter(Boolean) as string[] : [], [builderData]);
   const mappedLinks = useMemo(() => availableEdges.map(e => ({ source: e.source.id, target: e.target.id })), [availableEdges]);
 
@@ -227,7 +247,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       }
   });
 
-  // --- QUICK DEPLOY NEIGHBOR LOGIC ---
   const handleQuickAddNeighbor = (neighbor: GameNode) => {
       if (!infoModalNode || !builderData) return;
       const edgeId = [infoModalNode.id, neighbor.id].sort((a, b) => a - b).join('::');
@@ -259,7 +278,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       });
   }, [infoModalNode, selectedEdges, builderData, workspace]);
 
-  // --- AUTO-GENERATE ALGORITHM ---
   const generateValidGraphData = (totalNodes: number, reqPathLength: number, reqIsolated: number) => {
     if (!builderData) throw new Error("Data missing");
     const allNodes: GameNode[] = builderData.nodes;
@@ -433,7 +451,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     }, 500);
   };
 
-  // --- TIMER LOGIC ---
   useEffect(() => {
     if (!builderData || builderData.config.buildTime === 0) return;
     if (isSubmitting || isWaitingForOpponent || isPreparingSolve || isGenerating) return;
@@ -455,8 +472,11 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
   const forceSubmitOnTimeout = async () => {
     if (!builderData) return;
     setIsSubmitting(true);
-    const { playerId } = getLocalPlayerId();
     
+    // Tag this locally to protect from refreshing losing status
+    localStorage.setItem(`driftaku_submitted_${roomId}`, 'true');
+
+    const { playerId } = getLocalPlayerId();
     const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     if (!room) return;
     
@@ -497,6 +517,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
+        localStorage.removeItem(`driftaku_submitted_${roomId}`);
         toast("Failed to auto-submit graph.", "error");
         setIsSubmitting(false);
         return;
@@ -511,7 +532,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     }
   };
 
-  // --- MANUAL SUBMISSION ---
   const prepareSolvePhaseRef = useRef<any>(null);
   prepareSolvePhaseRef.current = (roomData: any) => {
       setIsWaitingForOpponent(false);
@@ -543,6 +563,10 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
               keysToDelete.forEach(key => localStorage.removeItem(key));
               localStorage.setItem(solveStorageKey, solveStorageValue);
               
+              // Clean up build phase validation keys
+              localStorage.removeItem(`driftaku_submitted_${roomId}`);
+              localStorage.removeItem(`driftaku_build_start_${roomId}`);
+
               if (isOwner && roomData.status !== 'solving') {
                   supabase.from('rooms').update({ status: 'solving' }).eq('id', roomId);
               }
@@ -554,10 +578,13 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    localStorage.setItem(`driftaku_submitted_${roomId}`, 'true');
+
     const { playerId } = getLocalPlayerId();
     
     const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
     if (!room) {
+        localStorage.removeItem(`driftaku_submitted_${roomId}`);
         toast("Room error!", "warning");
         setIsSubmitting(false);
         return;
@@ -574,6 +601,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
 
     const { error } = await supabase.from('rooms').update({ [column]: graphPayload }).eq('id', roomId);
     if (error) {
+        localStorage.removeItem(`driftaku_submitted_${roomId}`);
         toast("Failed to submit graph.", "error");
         setIsSubmitting(false);
         return;
@@ -700,8 +728,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
       />
 
       <div className="flex-1 relative bg-slate-950 h-full w-full overflow-hidden transition-all duration-300">
-        
-        {/* PIXI CANVAS PINNED (Wired with containerNode ref setter from the custom hook) */}
         <div ref={setContainerNode} className="absolute inset-0 z-10 pointer-events-auto touch-none" />
 
         <div className="hidden md:flex absolute top-6 left-1/2 -translate-x-1/2 z-30 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto">
@@ -709,7 +735,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         </div>
 
         <div className="absolute top-4 right-4 md:top-6 md:right-6 z-30 flex flex-col items-end gap-3 pointer-events-none">
-            
             {builderData.config.buildTime > 0 && (
               <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-2xl flex flex-col items-end pointer-events-auto">
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Time Remaining</p>
@@ -718,7 +743,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                 </p>
               </div>
             )}
-            
             <SharedCanvasControls 
                 onCenterView={handleCenterView}
                 onZoomIn={() => handleZoom('in')}
@@ -737,7 +761,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
         )}
 
         <div className={`absolute left-4 bottom-4 md:bottom-6 right-4 md:right-6 z-30 flex flex-col gap-3 pointer-events-none transition-all duration-500 ${isSidebarOpen ? 'left-4 md:left-[19.5rem]' : 'left-4 md:left-6'}`}>
-            
             <SharedWorkspaceSlider 
                 nodes={workspace}
                 startNodeId={startNodeId}
@@ -748,7 +771,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
                 showSubtitles={true}
                 targetLabel="Target Node"
             />
-
             <div className="md:hidden flex gap-1 bg-slate-900/90 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl pointer-events-auto overflow-x-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {renderToolbar()}
             </div>
@@ -766,7 +788,7 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             </div>
         )}
 
-        {/* AUTO-BUILD MODAL */}
+        {/* ... (Modals remain completely identical) */}
         {isAutoBuildModalOpen && (
             <div className="absolute inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
                 <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -830,7 +852,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
             </div>
         )}
 
-        {/* INFO MODAL */}
         {infoModalNode && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
               <div className={`bg-slate-900 border border-white/10 rounded-3xl p-5 md:p-6 ${isModalExpanded ? 'max-w-md' : 'max-w-sm'} w-full shadow-2xl relative transition-all duration-300 flex flex-col max-h-[90vh]`}>
@@ -924,7 +945,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
           </div>
         )}
 
-        {/* LEGEND MODAL */}
         {showLegend && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
               <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">

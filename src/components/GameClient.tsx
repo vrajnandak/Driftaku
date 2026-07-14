@@ -13,6 +13,7 @@ import { SharedWorkspaceSlider } from './SharedWorkspaceSlider';
 import { SharedCanvasControls } from './SharedCanvasControls';
 
 interface Props {
+  roomId?: string; // Made optional!
   levelData: LevelData;
   intendedPath?: string[];
   timeLimit?: number; 
@@ -20,22 +21,19 @@ interface Props {
   onWin: (time: number) => void;
 }
 
-const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTimeout, onWin }) => {
+const GameClient: React.FC<Props> = ({ roomId, levelData, intendedPath, timeLimit, onTimeout, onWin }) => {
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport | null>(null);
   
-  // Custom Hooks
   const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar();
   const { isFullscreen, toggleFullscreen } = useFullscreen(mainContainerRef);
   const { handleZoom, handleCenterView, handleLocateCoords, resetTargetZoom } = useViewportControls(viewportRef);
 
-  // Timer state
   const [timerDisplay, setTimerDisplay] = useState("00:00.0");
   const [timeDanger, setTimeDanger] = useState(false); 
   const timerRef = useRef<number | null>(null);
 
-  // React State
   const [workspaceNodes, setWorkspaceNodes] = useState<GameNode[]>([]);
   const [warehouseNodes, setWarehouseNodes] = useState<GameNode[]>([]);
   const [userLinks, setUserLinks] = useState<UserLink[]>([]);
@@ -46,7 +44,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   const [activeInfo, setActiveInfo] = useState<{name: string, type: number, x: number, y: number} | null>(null);
   const [uiPath, setUiPath] = useState<number[]>([levelData.metadata.start_node]);
 
-  // Hints
   const [hintsLeft, setHintsLeft] = useState(3);
   const [hintedNodeId, setHintedNodeId] = useState<number | null>(null);
   const [hintedEdgeId, setHintedEdgeId] = useState<string | null>(null);
@@ -61,6 +58,30 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     hintedEdgeId: null as string | null
   });
 
+  // --- INITIALIZE PERSISTENT TIMES AND HINTS (Conditional) ---
+  useEffect(() => {
+    // If no roomId is provided (e.g., standard single player), skip strict persistence
+    if (!roomId) {
+        stateRef.current.startTime = Date.now();
+        setHintsLeft(3);
+        return;
+    }
+
+    const timeKey = `driftaku_solve_start_${roomId}`;
+    const hintsKey = `driftaku_hints_left_${roomId}`;
+
+    let startTs = parseInt(localStorage.getItem(timeKey) || '0');
+    if (!startTs) {
+        startTs = Date.now();
+        localStorage.setItem(timeKey, startTs.toString());
+    }
+    stateRef.current.startTime = startTs;
+
+    let storedHints = parseInt(localStorage.getItem(hintsKey) || '3');
+    if (isNaN(storedHints)) storedHints = 3;
+    setHintsLeft(storedHints);
+  }, [roomId]);
+
   useEffect(() => {
     stateRef.current = { ...stateRef.current, userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId };
   }, [userLinks, tool, selectedNodeId, workspaceNodes, hintedNodeId, hintedEdgeId]);
@@ -70,7 +91,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     if (node && typeof node.x === 'number' && typeof node.y === 'number') handleLocateCoords(node.x, node.y);
   };
 
-  // --- INITIALIZATION ---
   useEffect(() => {
     const startNode = levelData.nodes.find(n => n.id === levelData.metadata.start_node)!;
     const endNode = levelData.nodes.find(n => n.id === levelData.metadata.end_node)!;
@@ -80,7 +100,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     setWarehouseNodes(others);
   }, [levelData]);
 
-  // --- PIXI ENGINE & SCENE HOOK ---
   const imageUrls = useMemo(() => levelData.nodes.map(n => n.image).filter(Boolean) as string[], [levelData]);
   const mappedLinks = useMemo(() => userLinks.map(l => ({ source: l.sourceId, target: l.targetId })), [userLinks]);
 
@@ -153,7 +172,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
   useEffect(() => {
     if (isWon) { if (timerRef.current) clearInterval(timerRef.current); return; }
 
-    stateRef.current.startTime = Date.now();
     timerRef.current = window.setInterval(() => {
       const elapsed = (Date.now() - stateRef.current.startTime) / 1000;
       if (timeLimit && timeLimit > 0) {
@@ -165,6 +183,13 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
           setTimeDanger(remaining <= 10 && remaining > 0);
           if (remaining <= 0) {
               if (timerRef.current) clearInterval(timerRef.current);
+              
+              // Conditional Cleanup
+              if (roomId) {
+                  localStorage.removeItem(`driftaku_solve_start_${roomId}`);
+                  localStorage.removeItem(`driftaku_hints_left_${roomId}`);
+              }
+
               if (onTimeout) onTimeout();
           }
       } else {
@@ -175,9 +200,8 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     }, 100);
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isWon, timeLimit, onTimeout]);
+  }, [isWon, timeLimit, onTimeout, roomId]);
 
-  // --- HINT ALGORITHM ---
   const handleRequestHint = () => {
     if (hintsLeft <= 0 || !intendedPath || intendedPath.length === 0) {
       toast("No hints available or path missing!", "warning"); return;
@@ -199,7 +223,11 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         if (nodeToDeploy) {
             deployNode(nodeToDeploy);
             setHintedNodeId(missingNodeId);
-            setHintsLeft(prev => prev - 1);
+            setHintsLeft(prev => {
+                const next = prev - 1;
+                if (roomId) localStorage.setItem(`driftaku_hints_left_${roomId}`, next.toString());
+                return next;
+            });
             setTimeout(() => handleLocateNode(missingNodeId), 150);
             return;
         }
@@ -214,7 +242,11 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
 
     if (unlinkedEdge) {
         setHintedEdgeId(unlinkedEdge);
-        setHintsLeft(prev => prev - 1);
+        setHintsLeft(prev => {
+            const next = prev - 1;
+            if (roomId) localStorage.setItem(`driftaku_hints_left_${roomId}`, next.toString());
+            return next;
+        });
         const [uId, vId] = unlinkedEdge.split('::').map(Number);
         const nodeA = workspaceNodes.find(n => n.id === uId);
         const nodeB = workspaceNodes.find(n => n.id === vId);
@@ -227,7 +259,6 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
     toast("You have deployed and linked all optimal nodes! Connect the final path to win.", "success");
   };
 
-  // --- HANDLERS ---
   const handleLinkAttempt = (targetId: number) => {
     const currentSelectedId = stateRef.current.selectedNodeId;
     if (!currentSelectedId) {
@@ -287,6 +318,13 @@ const GameClient: React.FC<Props> = ({ levelData, intendedPath, timeLimit, onTim
         setTimerDisplay(finalTime.toFixed(1));
         setUiPath(path);
         setIsWon(true);
+        
+        // Conditional Clean up
+        if (roomId) {
+            localStorage.removeItem(`driftaku_solve_start_${roomId}`);
+            localStorage.removeItem(`driftaku_hints_left_${roomId}`);
+        }
+        
         onWin(finalTime); 
         return;
       }
