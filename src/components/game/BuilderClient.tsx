@@ -152,21 +152,6 @@ const BuilderClient: React.FC<Props> = ({ roomId }) => {
     setIsModalExpanded(false);
   }, [infoModalNode]);
 
-  // --- SYNC AVAILABLE EDGES ---
-//   useEffect(() => {
-//     const currentEdges: GraphEdge[] = [];
-//     for (let i = 0; i < workspace.length; i++) {
-//         for (let j = i + 1; j < workspace.length; j++) {
-//             if (workspace[i].connections.includes(workspace[j].id)) {
-//                 const edgeId = [workspace[i].id, workspace[j].id].sort((a, b) => a - b).join('::');
-//                 currentEdges.push({ id: edgeId, source: workspace[i], target: workspace[j] });
-//             }
-//         }
-//     }
-//     setAvailableEdges(currentEdges);
-//     setSelectedEdges(prev => prev.filter(edgeId => currentEdges.some(e => e.id === edgeId)));
-//   }, [workspace]);
-
   // --- PIXI ENGINE HOOK ---
   const imageUrls = useMemo(() => builderData ? builderData.nodes.map((n: GameNode) => n.image).filter(Boolean) as string[] : [], [builderData]);
   const mappedLinks = useMemo(() => availableEdges.map(e => ({ source: e.source.id, target: e.target.id })), [availableEdges]);
