@@ -198,8 +198,6 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
   }, [room?.pool_id]);
 
   // --- 2.5 DYNAMIC CONFIG UPDATE ---
-  // If the owner changes the time settings AFTER the assets are cached, we must overwrite the local storage 
-  // so the GameClient and BuilderClient read the updated timers!
   useEffect(() => {
     if (isPoolReady && room?.config) {
         const stored = localStorage.getItem(`driftaku_pool_${roomId}`);
@@ -267,8 +265,58 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
     }
   }, [room?.status, isPoolReady]);
 
+  // Structured skeleton matching the final layout perfectly to eliminate layout shift on mounting.
+  if (loading || !room) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-pulse">
+        {/* LEFT COLUMN SKELETON */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="bg-slate-900 rounded-3xl p-6 border border-white/5 h-[234px] flex flex-col justify-between">
+            <div className="flex justify-between items-center">
+              <div className="h-8 w-32 bg-slate-800 rounded-xl"></div>
+              <div className="h-12 w-12 bg-slate-800 rounded-xl"></div>
+            </div>
+            <div className="h-14 w-full bg-slate-800 rounded-xl"></div>
+            <div className="h-10 w-full bg-slate-950/40 rounded-xl"></div>
+          </div>
+          
+          <div className="bg-slate-900 rounded-3xl p-6 border border-white/5 h-[210px] space-y-4">
+            <div className="h-4 w-24 bg-slate-800 rounded"></div>
+            <div className="space-y-3">
+              <div className="h-16 w-full bg-slate-950/40 rounded-2xl border border-white/5"></div>
+              <div className="h-16 w-full bg-slate-950/40 rounded-2xl border border-white/5"></div>
+            </div>
+          </div>
+        </div>
 
-  if (loading || !room) return <div className="text-white text-center py-20 font-mono tracking-widest text-xs animate-pulse">Loading Room...</div>;
+        {/* RIGHT COLUMN SKELETON */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-slate-900 rounded-3xl p-6 border border-white/5 h-[340px] flex flex-col justify-between">
+            <div className="flex justify-between items-center">
+              <div className="h-4 w-28 bg-slate-800 rounded"></div>
+              <div className="h-6 w-16 bg-slate-800 rounded"></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2"><div className="h-3 w-20 bg-slate-800 rounded"></div><div className="h-12 w-full bg-slate-950/40 rounded-xl"></div></div>
+              <div className="space-y-2"><div className="h-3 w-20 bg-slate-800 rounded"></div><div className="h-12 w-full bg-slate-950/40 rounded-xl"></div></div>
+              <div className="space-y-2"><div className="h-3 w-24 bg-slate-800 rounded"></div><div className="h-12 w-full bg-slate-950/40 rounded-xl"></div></div>
+              <div className="space-y-2"><div className="h-3 w-24 bg-slate-800 rounded"></div><div className="h-12 w-full bg-slate-950/40 rounded-xl"></div></div>
+            </div>
+            <div className="flex justify-end pt-4"><div className="h-10 w-32 bg-slate-800 rounded-xl"></div></div>
+          </div>
+
+          <div className="bg-slate-900 rounded-3xl p-6 border border-white/5 h-[320px] flex flex-col justify-between">
+            <div className="flex justify-between items-center">
+              <div className="h-4 w-32 bg-slate-800 rounded"></div>
+              <div className="h-6 w-20 bg-slate-800 rounded"></div>
+            </div>
+            <div className="h-[180px] bg-slate-950/40 rounded-2xl"></div>
+            <div className="flex justify-end"><div className="h-10 w-24 bg-slate-800 rounded-xl"></div></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const allPlayersCached = room.players.length === 2 && room.players.every((p: any) => p.isCached === true);
 
@@ -286,7 +334,7 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
           </div>
           
           {room.status === 'building' && !isPoolReady ? (
-              <div className="w-full py-4 text-center bg-slate-800 text-slate-400 font-bold uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 text-xs">
+              <div className="w-full h-[56px] bg-slate-800 text-slate-400 font-bold uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 text-xs">
                    <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
                    Buffering Assets ({progress}%)...
               </div>
@@ -294,7 +342,7 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
               <button 
                 onClick={handleStartMatch}
                 disabled={!isOwner || !allPlayersCached || isPoolLoading}
-                className={`w-full py-4 rounded-xl font-black uppercase transition-all 
+                className={`w-full h-[56px] rounded-xl font-black uppercase transition-all flex items-center justify-center
                   ${!isOwner ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 
                     !allPlayersCached || isPoolLoading ? 'bg-indigo-600/50 text-indigo-200 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95 shadow-lg shadow-indigo-500/20'}`}
               >
@@ -307,23 +355,37 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
           )}
 
           <div className="mt-4 pt-4 border-t border-white/10">
-              <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
+              <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest text-slate-500">
                   <span>Your Client Cache</span>
                   <span className={isPoolReady ? 'text-emerald-400' : poolError ? 'text-rose-400' : 'text-amber-400 animate-pulse'}>
                       {isPoolReady ? `● Ready (${poolSize} Nodes)` : poolError ? '❌ Error' : '○ Downloading...'}
                   </span>
               </div>
-              {!isPoolReady && !poolError && (
-                  <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mb-2">
-                      <div className="h-full bg-indigo-500 transition-all duration-200" style={{ width: `${progress}%` }}></div>
-                  </div>
-              )}
-              {loadMetrics && (
-                  <div className="flex justify-between text-[9px] text-slate-600 font-mono mt-2">
-                      <span title="Server Database Fetch Time">DB: {loadMetrics.db}ms</span>
-                      <span title="Client Image Download Time">Img: {loadMetrics.assets}ms</span>
-                  </div>
-              )}
+              
+              {/* Consolidated cache status zone (h-10 block) to prevent layout shifting */}
+              <div className="h-10 flex flex-col justify-end">
+                {!isPoolReady && !poolError ? (
+                    <div className="w-full">
+                        <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mb-1">
+                            <div className="h-full bg-indigo-500 transition-all duration-200" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <div className="flex justify-between text-[8px] text-slate-500 font-mono">
+                            <span>Downloading pool assets...</span>
+                            <span>{progress}%</span>
+                        </div>
+                    </div>
+                ) : isPoolReady ? (
+                    <div className="flex justify-between text-[9px] text-slate-600 font-mono">
+                        <span title="Server Database Fetch Time">DB: {loadMetrics?.db || 0}ms</span>
+                        <span title="Client Image Download Time">Img: {loadMetrics?.assets || 0}ms</span>
+                        <span>Pool: {poolSize} Nodes</span>
+                    </div>
+                ) : (
+                    <div className="text-[9px] text-rose-500 font-mono">
+                        {poolError || 'An error occurred during asset buffer.'}
+                    </div>
+                )}
+              </div>
           </div>
         </div>
 
@@ -331,9 +393,9 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
           <h2 className="text-sm font-black text-slate-300 mb-4">Players ({room.players.length}/2)</h2>
           <div className="space-y-3">
             {room.players.map((player: any) => (
-              <div key={player.id} className="flex justify-between items-center bg-slate-950 p-4 rounded-2xl border border-white/5">
+              <div key={player.id} className="flex justify-between items-center bg-slate-950 p-4 rounded-2xl border border-white/5 h-16">
                 <div>
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-white text-sm">
                       {player.name} {player.id === playerId ? '(You)' : ''}
                     </span>
                     <div className="flex items-center gap-2 mt-1">
@@ -346,11 +408,12 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
               </div>
             ))}
             {room.players.length < 2 && (
-              <div className="flex items-center gap-3 border-2 border-dashed border-white/10 p-4 rounded-2xl opacity-50">
-                <div className="w-8 h-8 rounded-full border-2 border-white/20 flex items-center justify-center">
-                  <span className="animate-ping w-2 h-2 rounded-full bg-slate-400"></span>
+              <div className="flex items-center gap-3 border-2 border-dashed border-white/10 p-4 rounded-2xl opacity-50 h-16">
+                <div className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center relative">
+                  <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-slate-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-400"></span>
                 </div>
-                <p className="text-sm font-bold text-slate-400">Waiting for player...</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Waiting for player...</p>
               </div>
             )}
           </div>
@@ -448,7 +511,8 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
                </span>
             </div>
 
-            <div className="relative z-10 min-h-[120px] flex flex-col justify-center">
+            {/* Locked-height trivia body prevents structural movement during text changes */}
+            <div className="relative z-10 h-[260px] sm:h-[180px] flex flex-col justify-center overflow-y-auto no-scrollbar">
                 {currentTrivia.type === 'fact' ? (
                     <p className="text-white text-base md:text-lg font-medium leading-relaxed">"{currentTrivia.text}"</p>
                 ) : (
@@ -472,7 +536,7 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
                                         key={idx}
                                         onClick={() => !isRevealed && setSelectedAnswer(opt)}
                                         disabled={isRevealed}
-                                        className={`px-4 py-3 rounded-xl text-sm text-left ${btnClass}`}
+                                        className={`px-4 py-3 rounded-xl text-sm text-left h-11 truncate ${btnClass}`}
                                     >
                                         {opt}
                                     </button>
