@@ -49,6 +49,26 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       return map;
   }, [levelData]);
 
+  // Determine all nodes reachable from the start node
+  const reachableFromStart = useMemo(() => {
+      const visited = new Set<number>();
+      const queue = [levelData.metadata.start_node];
+      visited.add(levelData.metadata.start_node);
+
+      while (queue.length > 0) {
+          const curr = queue.shift()!;
+          const node = allNodesMap[curr];
+          if (!node) continue;
+          node.connections.forEach(neighbor => {
+              if (!visited.has(neighbor) && allNodesMap[neighbor]) {
+                  visited.add(neighbor);
+                  queue.push(neighbor);
+              }
+          });
+      }
+      return visited;
+  }, [levelData.metadata.start_node, allNodesMap]);
+
   useEffect(() => { stateRef.current = { tool, targetNodeId, edgeSourceId, workspace, userLinks }; }, [tool, targetNodeId, edgeSourceId, workspace, userLinks]);
 
   const handleLocateNode = (nodeId: number) => {
@@ -98,18 +118,30 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
           const { targetNodeId: currentTarget, jumpsLeft: currentJumps, workspace: currentWorkspace } = botStateRef.current;
           if (currentJumps <= 1) { setIsLost(true); return; }
 
-          const currentNode = allNodesMap[currentTarget];
-          const validNeighbors = currentNode.connections.filter(id => allNodesMap[id] && id !== levelData.metadata.start_node);
+          // Use nodes that are strictly reachable from start node (excluding current & start node)
+          const validNodes = Array.from(reachableFromStart).filter(id => id !== levelData.metadata.start_node && id !== currentTarget);
           
-          if (validNeighbors.length === 0) {
+          if (validNodes.length === 0) {
               setToastMsg("The Bot is cornered! Catch it!"); setTimeout(() => setToastMsg(null), 3000); return;
           }
 
-          const nextNodeId = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+          const workspaceNodeIds = new Set(currentWorkspace.map(n => n.id));
+          const undeployedNodes = validNodes.filter(id => !workspaceNodeIds.has(id));
+
+          let nextNodeId: number;
+          
+          // Prioritize reachable nodes not already deployed in the workspace
+          if (undeployedNodes.length > 0) {
+              nextNodeId = undeployedNodes[Math.floor(Math.random() * undeployedNodes.length)];
+          } else {
+              // Otherwise traverse around already deployed nodes
+              nextNodeId = validNodes[Math.floor(Math.random() * validNodes.length)];
+          }
+
           setTargetNodeId(nextNodeId); setJumpsLeft(prev => prev - 1);
           setToastMsg(`Bot jumped to ${allNodesMap[nextNodeId].name}!`); setTimeout(() => setToastMsg(null), 3000);
 
-          if (!currentWorkspace.some(n => n.id === nextNodeId)) {
+          if (!workspaceNodeIds.has(nextNodeId)) {
               const prevBotNode = currentWorkspace.find(n => n.id === currentTarget);
               const spawnX = prevBotNode && prevBotNode.x != null ? prevBotNode.x + (Math.random() * 60 - 30) : 1000;
               const spawnY = prevBotNode && prevBotNode.y != null ? prevBotNode.y + (Math.random() * 60 - 30) : 1000;
@@ -126,7 +158,7 @@ const BountyHuntClient: React.FC<Props> = ({ levelData }) => {
       }, 100);
 
       return () => clearInterval(interval);
-  }, [hasStarted, isWon, isLost, allNodesMap, levelData.metadata.start_node]);
+  }, [hasStarted, isWon, isLost, allNodesMap, levelData.metadata.start_node, reachableFromStart]);
 
   useEffect(() => {
       if (!hasStarted || isWon || isLost) return;
