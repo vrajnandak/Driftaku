@@ -6,12 +6,24 @@ import BountyHuntClient from '../../components/game/BountyHuntClient.tsx';
 import { supabase } from '../../lib/supabase';
 import GameHeader from '../../components/game/GameHeader.astro';
 
+const { count, error: countError } = await supabase
+    .from('draft_pools')
+    .select('*', { count: 'exact', head: true });
+
+if (countError || count === null || count === 0) {
+    return Astro.redirect('/');
+}
+
+// 2. Generate a random index between 0 and (count - 1)
+const randomIndex = Math.floor(Math.random() * count);
+
 // Fetch a random drafting pool from Supabase
-const { data: pool, error } = await supabase
+const { data: pools, error } = await supabase
     .from('draft_pools')
     .select('nodes_data')
-    .limit(1)
-    .single();
+    .range(randomIndex, randomIndex);
+
+const pool = pools?.[0];
 
 if (error || !pool) {
     return Astro.redirect('/');

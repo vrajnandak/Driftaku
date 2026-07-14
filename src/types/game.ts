@@ -40,15 +40,6 @@ export interface NodeVisuals {
   icon: PIXI.Graphics;
 }
 
-// export const NODE_COLORS = {
-//   Anime: 0x818cf8,          // Indigo
-//   "Anime character": 0xf43f5e, // Rose
-//   "Voice Actor": 0xfbbf24,     // Amber
-//   Studio: 0x10b981,           // Emerald
-//   Start: 0xffffff,
-//   Target: 0x22d3ee            // Cyan
-// };
-// Mapping for UI purposes
 export const TYPE_MAP = {
   0: "Character",
   1: "Voice Actor",
