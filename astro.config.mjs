@@ -13,7 +13,7 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  site: 'https://www.driftaku.com',
+  site: 'https://driftaku.com',
   integrations: [react(), sitemap()],
   adapter: cloudflare()
 });
