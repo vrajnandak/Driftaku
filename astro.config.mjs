@@ -7,15 +7,13 @@ import react from '@astrojs/react';
 
 import cloudflare from '@astrojs/cloudflare';
 
-// https://astro.build/config
+import sitemap from '@astrojs/sitemap';
+
 export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
-    // server: {
-    //   allowedHosts: true,
-    // },
   },
-
-  integrations: [react()],
+  site: 'https://www.driftaku.com',
+  integrations: [react(), sitemap()],
   adapter: cloudflare()
 });

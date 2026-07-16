@@ -9,9 +9,39 @@ const stats = {
     studios: "230+",
     actors: "2,400+"
 };
+
+const howToSchema = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to Play Driftaku",
+  "description": "Learn how to connect anime, voice actors, and studios in the shortest path possible.",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "name": "Identify the Start and Target Nodes",
+      "text": "Your objective is to establish a continuous, linked line of verified database connections from the Start Node to the final Target Node."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Use the Move Tool",
+      "text": "Click a node to open its Info Profile to view exact database connections, or use 'Suggest Connections' to pull related nodes onto the canvas."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Toggle Edges to Build Paths",
+      "text": "Click your Source Node, then click a valid Destination Node. If the database confirms they are connected, a link is formed."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Utilize Connection Tactics",
+      "text": "Master patterns like routing through a Voice Actor to connect two Characters, or jumping through shared Animation Studios."
+    }
+  ]
+};
 ---
 
 <Layout title="How to Play | Driftaku" description="Master the rules of Driftaku, learn tactical anime connection shortcuts, and design unbeatable webs for your rivals.">
+    <script type="application/ld+json" set:html={JSON.stringify(howToSchema)}></script>
     <main class="max-w-5xl mx-auto px-4 py-12 md:py-16 overflow-hidden font-sans">
         
         <!-- Hero Section -->

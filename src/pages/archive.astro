@@ -82,9 +82,12 @@ const getNextPageUrl = () => {
     url.searchParams.set('page', (page + 1).toString());
     return url.pathname + url.search;
 };
+
+const hasQueryParams = Astro.url.searchParams.toString().length > 0;
+const robotsTag = hasQueryParams ? "noindex, follow" : "index, follow";
 ---
 
-<Layout title="Archive | Driftaku Past Webs">
+<Layout title="Archive | Driftaku Past Webs" robots={robotsTag}>
     <main class="max-w-7xl mx-auto px-4 py-12 md:py-16">
         
         <header class="mb-10 text-center md:text-left">
@@ -163,7 +166,7 @@ const getNextPageUrl = () => {
                             
                             <div class="flex flex-col items-center flex-1 min-w-0 z-10">
                                 <div class="w-14 h-14 rounded-full bg-slate-950 border-4 border-white shadow-lg overflow-hidden shrink-0">
-                                    {startImg ? <img src={startImg} class="w-full h-full object-cover" /> : <div class="w-full h-full bg-slate-800"></div>}
+                                    {startImg ? <img src={startImg} alt={web.metadata.start_name} loading="lazy" decoding="async" class="w-full h-full object-cover" /> : <div class="w-full h-full bg-slate-800"></div>}
                                 </div>
                                 <span class="text-[10px] text-white font-bold truncate w-full text-center mt-2 px-1" title={web.metadata.start_name}>{web.metadata.start_name}</span>
                             </div>
@@ -172,7 +175,7 @@ const getNextPageUrl = () => {
                             
                             <div class="flex flex-col items-center flex-1 min-w-0 z-10">
                                 <div class="w-14 h-14 rounded-full bg-slate-950 border-4 border-cyan-400 shadow-lg overflow-hidden shrink-0">
-                                    {endImg ? <img src={endImg} class="w-full h-full object-cover" /> : <div class="w-full h-full bg-slate-800"></div>}
+                                    {endImg ? <img src={endImg} alt={web.metadata.end_name} loading="lazy" decoding="async" class="w-full h-full object-cover" /> : <div class="w-full h-full bg-slate-800"></div>}
                                 </div>
                                 <span class="text-[10px] text-white font-bold truncate w-full text-center mt-2 px-1" title={web.metadata.end_name}>{web.metadata.end_name}</span>
                             </div>

@@ -1,6 +1,8 @@
 ---
 export const prerender = false;
 
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=120');
+
 import Layout from '../../layouts/Layout.astro';
 import DailyGameWrapper from '../../components/game/DailyGameWrapper.tsx';
 import DailyLeaderboard from '../../components/game/DailyLeaderboard.tsx'; // Import new component
@@ -42,9 +44,21 @@ if(initialResults && initialResults.length > 0) {
     const sum = times.reduce((acc: number, curr: number) => acc + curr, 0);
     globalAvg =  sum / initialResults.length;
 }
+
+const gameSchema = {
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": challenge.metadata.title || "Driftaku Daily Challenge",
+  "description": "Play today's daily anime connection puzzle on Driftaku. Connect the start and target nodes in the shortest path.",
+  "genre": ["Puzzle", "Logic", "Anime"],
+  "playMode": "SinglePlayer",
+  "operatingSystem": "Web Browser",
+  "applicationCategory": "GameApplication"
+};
 ---
 
-<Layout title={`Daily Web | Driftaku`}>
+<Layout title={`${challenge.metadata.title || "Daily Web"} | Driftaku`} description="Play today's daily anime connection puzzle. Can you find the shortest path and beat the world record?">
+    <script type="application/ld+json" set:html={JSON.stringify(gameSchema)}></script>
     <main class="max-w-7xl mx-auto px-4 py-8 font-sans relative">
         
         <!-- Header Context -->
@@ -85,9 +99,9 @@ if(initialResults && initialResults.length > 0) {
                     <!-- CSS IMAGE SLIDER 1 -->
                     <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
                         <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
-                            <img src="/DriftakuGame/daily_challenge_start_screen.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
-                            <img src="/DriftakuGame/GamePlay.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
-                            <img src="/DriftakuGame/VictoryModal.png" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
+                            <img src="/DriftakuGame/daily_challenge_start_screen.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/GamePlay.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                            <img src="/DriftakuGame/VictoryModal.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/6366f1?text=Link+Tool+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
                         </div>
                         <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
                             <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
@@ -111,10 +125,10 @@ if(initialResults && initialResults.length > 0) {
                     <!-- CSS IMAGE SLIDER 2 -->
                     <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
                         <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
-                            <img src="/DriftakuGame/sidebar_search/anime_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
-                            <img src="/DriftakuGame/sidebar_search/character_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
-                            <img src="/DriftakuGame/sidebar_search/studio_search_sidebar.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
-                            <img src="/DriftakuGame/sidebar_search/voice_actor_sidebar_search.png" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+4'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 4" />
+                            <img src="/DriftakuGame/sidebar_search/anime_search_sidebar.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/sidebar_search/character_search_sidebar.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                            <img src="/DriftakuGame/sidebar_search/studio_search_sidebar.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+3'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 3" />
+                            <img src="/DriftakuGame/sidebar_search/voice_actor_sidebar_search.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/10b981?text=Warehouse+4'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 4" />
                         </div>
                         <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
                             <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
@@ -139,7 +153,7 @@ if(initialResults && initialResults.length > 0) {
                     <!-- CSS IMAGE SLIDER 3 -->
                     <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
                         <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
-                            <img src="/DriftakuGame/NavigationAndPenalties.png" onerror="this.src='https://placehold.co/400x300/0f172a/f43f5e?text=Nav+Tools'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/NavigationAndPenalties.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/f43f5e?text=Nav+Tools'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
                         </div>
                         <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
                             <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
@@ -163,8 +177,8 @@ if(initialResults && initialResults.length > 0) {
                     <!-- CSS IMAGE SLIDER 4 -->
                     <div class="w-full md:w-64 h-40 shrink-0 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden group">
                         <div class="gallery-container flex overflow-x-auto snap-x snap-mandatory h-full w-full no-scrollbar scroll-smooth">
-                            <img src="/DriftakuGame/hint_usage/hint_edge_shown.png" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
-                            <img src="/DriftakuGame/hint_usage/hint_node_shown.png" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
+                            <img src="/DriftakuGame/hint_usage/hint_edge_shown.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+1'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 1" />
+                            <img src="/DriftakuGame/hint_usage/hint_node_shown.png" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/400x300/0f172a/fbbf24?text=Hints+2'" class="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-transform shrink-0 snap-center" alt="Guide Image 2" />
                         </div>
                         <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none flex items-center justify-end pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
                             <svg class="w-4 h-4 text-white animate-bounce-x" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>

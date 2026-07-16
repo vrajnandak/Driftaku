@@ -13,6 +13,9 @@ interface Props {
 
 const DailyLeaderboard: React.FC<Props> = ({ initialResults, playDate }) => {
   const [leaderboard, setLeaderboard] = useState<Score[]>(initialResults || []);
+  useEffect(() => {
+    setLeaderboard(initialResults || []);
+  }, [initialResults]);
 
   useEffect(() => {
     // Listen for real-time updates to today's leaderboard

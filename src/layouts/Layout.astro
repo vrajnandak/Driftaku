@@ -3,16 +3,20 @@ import '../styles/global.css'
 
 interface Props { 
 	title?: string; 
-	description?: string; 
+	description?: string;
+	image?: string;
+	robots?: string;
 }
 
 const { 
 	title = "Driftaku | The Ultimate Anime Connection Challenge",
-	// Updated description to remove wallpaper and focus on the new Anime World SEO keywords
-	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Play daily puzzles and explore the Anime World!" 
+	description = "Test your otaku knowledge on Driftaku. Connect anime, voice actors, and studios in the shortest path possible. Play daily puzzles and explore the Anime World!",
+	image = "/og-image.png",
+	robots = "index, follow"
 } = Astro.props;
 
-const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
+const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://driftaku.com");
+const socialImageURL = new URL(image, Astro.url);
 ---
 
 <!doctype html>
@@ -25,13 +29,21 @@ const canonicalURL = new URL(Astro.url.pathname, "https://driftaku.com");
 	<title>{title}</title>
 	<meta name="title" content={title} />
 	<meta name="description" content={description} />
+	<meta name="robots" content={robots} />
+	<link rel="canonical" href={canonicalURL} />
 
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content={canonicalURL} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
-	<meta property="og:image" content="/og-image.png" />
+	<meta property="og:image" content={socialImageURL} />
+
+	<meta property="twitter:card" content="summary_large_image" />
+	<meta property="twitter:url" content={canonicalURL} />
+	<meta property="twitter:title" content={title} />
+	<meta property="twitter:description" content={description} />
+	<meta property="twitter:image" content={socialImageURL} />
 
 	<!-- Favicon -->
 	<link rel="icon" type="image/png" href="/DriftAku_first_choice.png" />

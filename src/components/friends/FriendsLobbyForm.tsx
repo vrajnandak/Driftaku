@@ -74,8 +74,6 @@ const FriendsLobbyForm: React.FC = () => {
     setIsCreating(true);
     const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const { playerId } = getLocalPlayerId();
-
-    const { data: allPools, error: allPoolsError } = await supabase.from('draft_pools').select('id, popularity_tier, era_min, era_max').limit(5);
     
     // 1. Query the supabase to Find a matching draft pool.
     let poolQuery = supabase.from('draft_pools').select('id');

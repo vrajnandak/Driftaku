@@ -213,12 +213,12 @@ const FriendsLobbyManager: React.FC<Props> = ({ roomId }) => {
   useEffect(() => {
       if (isPoolReady && room) {
           const markAsCached = async () => {
-              const { data } = await supabase.from('rooms').select('players').eq('id', roomId).single();
-              if (data) {
-                  const updatedPlayers = data.players.map((p: any) => 
-                      p.id === playerId ? { ...p, isCached: true } : p
-                  );
-                  await supabase.from('rooms').update({ players: updatedPlayers }).eq('id', roomId);
+              const { error } = await supabase.rpc('mark_player_cached', {
+                  p_room_id: roomId,
+                  p_player_id: playerId
+              });
+              if (error) {
+                toast("Failed to sync readiness", 'error');
               }
           };
           markAsCached();

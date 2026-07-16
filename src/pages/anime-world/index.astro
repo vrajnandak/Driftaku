@@ -6,9 +6,24 @@ import AdUnit from '../../components/AdUnit.astro';
 import { getTopAnime, slugify } from '../../utils/animeDb';
 
 const topAnime = getTopAnime();
+
+// NEW: ItemList Schema to tell Google this is a directory page
+const itemListSchema = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "itemListElement": topAnime.map((anime: any, index: number) => ({
+    "@type": "ListItem",
+    "position": index + 1,
+    "url": `https://driftaku.com/anime-world/${anime.id}-${slugify(anime.name)}`,
+    "name": anime.name
+  }))
+};
 ---
 
 <Layout title="Anime World | Best Anime to Watch | Driftaku" description="Explore the Anime World. Discover the best anime to watch and uncover hidden connections.">
+    <!-- NEW: Inject JSON-LD -->
+    <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)}></script>
+
     <main class="max-w-7xl mx-auto px-4 py-12 md:py-16 font-sans">
         
         <header class="text-center mb-16 relative">
@@ -34,6 +49,7 @@ const topAnime = getTopAnime();
         </div>
 
         <section id="top-rated" class="mb-20">
+            <!-- ... [KEEP REST OF HTML EXACTLY THE SAME] ... -->
             <div class="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
                 <div>
                     <h2 class="text-3xl font-black text-white uppercase tracking-tighter">Highly Connected Anime</h2>

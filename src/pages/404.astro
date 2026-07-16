@@ -2,7 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="404 - Page Not Found | Driftaku">
+<!-- NEW: Added robots prop to prevent indexing -->
+<Layout title="404 - Page Not Found | Driftaku" robots="noindex, follow">
     <div class="min-h-[calc(100vh-4rem)] w-full flex items-center justify-center p-6 relative overflow-hidden">
         
         {/* Background Decorative Elements */}
