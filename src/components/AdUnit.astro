@@ -4,22 +4,52 @@ interface Props {
 	class?: string;
 }
 
-const { type, class: className } = Astro.props;
+const { type, class: className = '' } = Astro.props;
 
+// Explicit dimensions to prevent Cumulative Layout Shift (CLS)
 const dimensions = {
-	banner: "w-full h-24 max-w-[728px]", // Standard leaderboard size constraint
-	skyscraper: "w-full h-[600px] max-w-[300px]",
-	inline: "w-full h-48"
-}
+	banner: "w-full min-h-[90px] max-w-[728px] mx-auto",
+	skyscraper: "w-full min-h-[600px] max-w-[300px] mx-auto",
+	inline: "w-full min-h-[250px] mx-auto"
+};
+
+// Your actual Google AdSense Publisher ID
+const AD_CLIENT = "ca-pub-3643916051400406"; 
+
+// The specific Ad Slot IDs
+const AD_SLOTS = {
+    banner: "3515289899",     // Driftaku - Banner
+    skyscraper: "3515289899", // (Using banner ID for now, replace if you make a Skyscraper unit)
+    inline: "3515289899"      // (Using banner ID for now, replace if you make an Inline unit)
+};
 ---
 
-<!-- <div class={`${dimensions[type]} bg-slate-900/50 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center text-slate-500 overflow-hidden relative group ${className}`}>
-	
-    <svg class="w-6 h-6 mb-2 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-    <span class="text-[10px] uppercase font-black tracking-[0.2em]">Ad Placement</span>
-    <span class="text-[8px] uppercase tracking-widest opacity-50 mt-1">{type}</span>
+<div class={`ad-wrapper overflow-hidden bg-slate-900/20 rounded-xl flex justify-center items-center ${dimensions[type]} ${className}`}>
+    
+    <!-- The actual AdSense injected element -->
+    <ins class="adsbygoogle"
+        style="display:block; width:100%; height:100%;"
+        data-ad-client={AD_CLIENT}
+        data-ad-slot={AD_SLOTS[type]}
+        data-ad-format="auto"
+        data-full-width-responsive="true">
+    </ins>
 
-    Future: Paste AdSense <ins> code here. Note: AdSense usually requires removing the flex/padding utilities so it can inject its iframe cleanly.
-</div> -->
+    <!-- 
+        is:inline tells Astro not to bundle this script, 
+        ensuring it fires correctly every time this component is rendered 
+    -->
+    <script is:inline>
+        (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+</div>
+
+<style>
+    /* 
+      Hides the ad wrapper entirely if AdSense doesn't have an ad available 
+      to show to the user, preventing blank awkward gaps in your layout.
+    */
+    ins.adsbygoogle[data-ad-status="unfilled"] {
+        display: none !important;
+    }
+</style>
