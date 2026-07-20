@@ -1,0 +1,72 @@
+---
+export const prerender = true;
+
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="About Us | Driftaku" description="Learn about Driftaku, the ultimate anime connection puzzle game, and the solo developer behind it.">
+    <main class="max-w-4xl mx-auto px-4 py-12 md:py-20 font-sans">
+        
+        <!-- Header -->
+        <header class="text-center mb-16 relative">
+            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-cyan-500/10 blur-[80px] rounded-full -z-10"></div>
+            
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-widest mb-6 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                Project Origins
+            </span>
+            
+            <h1 class="text-5xl md:text-6xl font-black text-white uppercase tracking-tighter mb-4">About Driftaku</h1>
+            <p class="text-slate-400 text-sm md:text-base max-w-xl mx-auto">
+                Navigating the massive, interconnected universe of Japanese animation through spatial logic and daily challenges.
+            </p>
+        </header>
+
+        <div class="space-y-8">
+            <!-- Section 1: What is it -->
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-xl relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/10 blur-3xl rounded-full pointer-events-none"></div>
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-4 relative z-10">What is Driftaku?</h2>
+                <div class="text-slate-300 text-sm leading-relaxed space-y-4 relative z-10">
+                    <p>
+                        Driftaku is a browser-based spatial logic puzzle game designed to test your knowledge of the anime industry. Inspired by games like "Six Degrees of Kevin Bacon" and Wikipedia routing puzzles, Driftaku challenges players to find the shortest possible path between two disconnected entities in the anime world.
+                    </p>
+                    <p>
+                        Whether connecting a voice actor to an animation studio, or finding the link between two completely different shows, every connection on the canvas is verified by real-world database relationships.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Section 2: The Developer -->
+            <div class="bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-xl relative overflow-hidden">
+                <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none"></div>
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-4 relative z-10">Who runs this site?</h2>
+                <div class="text-slate-300 text-sm leading-relaxed space-y-4 relative z-10">
+                    <p>
+                        Driftaku is developed and maintained entirely by a passionate solo developer. I built this game because I was tired of scrolling through flat, traditional anime lists and wanted a highly interactive, visual way to explore how studios, voice actors, and series overlap.
+                    </p>
+                    <p>
+                        Because it is an independent project, community feedback means everything. If you have feature requests, notice missing database links, or just want to say hi, I actively read all submissions sent through the <a href="/contact" class="text-indigo-400 hover:text-indigo-300 font-bold underline decoration-indigo-500/30 underline-offset-2">Contact page</a>.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Section 3: Data & Transparency (Crucial for AdSense) -->
+            <div class="bg-slate-950 border border-white/5 rounded-3xl p-8 shadow-inner">
+                <h2 class="text-lg font-black text-slate-400 uppercase tracking-widest mb-4">Data Transparency & Attribution</h2>
+                <p class="text-slate-400 text-xs md:text-sm leading-relaxed mb-4">
+                    To ensure accuracy and fairness in the puzzles, all connections, character data, and studio relationships are programmatically sourced and validated. 
+                </p>
+                <div class="bg-slate-900 border border-white/5 p-4 rounded-xl flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-bold text-sm">Powered by AniList</h3>
+                        <p class="text-slate-500 text-[10px] uppercase tracking-widest mt-0.5">Underlying data provided by the AniList API</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</Layout>
