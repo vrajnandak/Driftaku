@@ -1,10 +1,10 @@
 ---
-export const prerender = false;
-Astro.response.headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800'); 
+// 1. Enable 100% Static Site Generation
+export const prerender = true;
 
 import Layout from '../../layouts/Layout.astro';
 import AdUnit from '../../components/AdUnit.astro';
-import { getAnimeById, getSimilarAnime, resolveStudios, resolveCharacters, slugify } from '../../utils/animeDb';
+import { getSimilarAnime, resolveStudios, resolveCharacters, slugify, getAllAnime } from '../../utils/animeDb';
 
 // --- TYPESCRIPT INTERFACES ---
 interface ItemData {
@@ -23,19 +23,23 @@ interface AnimeData extends ItemData {
     characters: number[] | any[];
 }
 
-const { id: paramId } = Astro.params;
-
-if (!paramId) {
-    return Astro.redirect('/anime-world');
+// 2. Generate static paths & pass the anime object as a prop to fix the TypeScript error
+export async function getStaticPaths() {
+    const allAnime = getAllAnime();
+    return allAnime.map((anime: any) => ({
+        params: { id: `${anime.id}-${slugify(anime.name)}` },
+        props: { targetAnime: anime } // Passed directly as a prop
+    }));
 }
 
-const rawId = parseInt(paramId.split('-')[0], 10);
-const targetAnime = getAnimeById(rawId) as AnimeData | null;
+// 3. Read targetAnime directly from Astro.props (Bypasses URL string parsing)
+const { targetAnime } = Astro.props as { targetAnime: AnimeData };
 
 if (!targetAnime) {
     return Astro.redirect('/anime-world');
 }
 
+const rawId = targetAnime.id;
 const studios = resolveStudios(targetAnime.studios) as StudioData[];
 const characters = resolveCharacters(targetAnime.characters) as ItemData[];
 const recommendedAnime = getSimilarAnime(rawId) as ItemData[];
@@ -104,17 +108,19 @@ const jsonLd = {
                     
                     <div class="p-6 relative z-10 -mt-20">
                         <h1 class="text-2xl md:text-3xl font-black text-white leading-tight mb-3 drop-shadow-lg">{targetAnime.name}</h1>
+                        
+                        <!-- DYNAMIC TEXT PARAGRAPH FOR ADSENSE / SEO -->
                         <div class="mt-4 text-slate-300 text-sm leading-relaxed border-l-2 border-indigo-500 pl-4 bg-slate-900/50 p-4 rounded-r-xl shadow-inner">
-                        <p>
-                            Welcome to the Driftaku database profile for <strong>{targetAnime.name}</strong>. 
-                            In our spatial logic puzzle game, this anime serves as a major connection node. 
-                            It was produced by {studios.length > 0 ? studios.map(s => s.name).join(', ') : 'various studios'} 
-                             and features a massive cast of {characters.length} key characters and voice actors. 
-                            If you are trying to build a winning path in the game, routing through {targetAnime.name} 
-                            can connect you to {recommendedAnime.length} highly similar anime based on shared database metadata. 
-                            Mastering these connections is the key to topping the daily leaderboard.
-                        </p>
-                    </div>
+                            <p>
+                                Welcome to the Driftaku database profile for <strong>{targetAnime.name}</strong>. 
+                                In our spatial logic puzzle game, this anime serves as a major connection node. 
+                                It was produced by {studios.length > 0 ? studios.map(s => s.name).join(', ') : 'various studios'} 
+                                and features a massive cast of {characters.length} key characters and voice actors. 
+                                If you are trying to build a winning path in the game, routing through {targetAnime.name} 
+                                can connect you to {recommendedAnime.length} highly similar anime based on shared database metadata. 
+                                Mastering these connections is the key to topping the daily leaderboard.
+                            </p>
+                        </div>
                         
                         <div class="flex flex-wrap gap-2 mt-4">
                             <span class="bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-sm">

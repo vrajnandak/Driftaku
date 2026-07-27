@@ -16,6 +16,10 @@ if (db && db.anime && db.characters && db.studios) {
     db.studios.forEach((s: any) => studioMap.set(s.id, s));
 }
 
+export const getAllAnime = () => {
+    return db?.anime || [];
+};
+
 export const getTopAnime = () => {
     return db?.anime?.slice(0, 24) || [];
 };
