@@ -3,11 +3,19 @@ export const prerender = true;
 
 import Layout from '../../layouts/Layout.astro';
 import AdUnit from '../../components/AdUnit.astro';
-import { getTopAnime, slugify } from '../../utils/animeDb';
+import { getTopAnime, getAllAnime, slugify } from '../../utils/animeDb';
 
 const topAnime = getTopAnime();
+const allAnime = getAllAnime();
 
-// NEW: ItemList Schema to tell Google this is a directory page
+// Create a slimmed-down search index to send to the browser
+const searchIndex = allAnime.map((anime: any) => ({
+    name: anime.name,
+    url: `/anime-world/${anime.id}-${slugify(anime.name)}`,
+    image: anime.image
+}));
+
+// ItemList Schema to tell Google this is a directory page
 const itemListSchema = {
   "@context": "https://schema.org",
   "@type": "ItemList",
@@ -21,12 +29,12 @@ const itemListSchema = {
 ---
 
 <Layout title="Anime World | Best Anime to Watch | Driftaku" description="Explore the Anime World. Discover the best anime to watch and uncover hidden connections.">
-    <!-- NEW: Inject JSON-LD -->
+    <!-- Inject JSON-LD -->
     <script type="application/ld+json" set:html={JSON.stringify(itemListSchema)}></script>
 
     <main class="max-w-7xl mx-auto px-4 py-12 md:py-16 font-sans">
         
-        <header class="text-center mb-16 relative">
+        <header class="text-center mb-10 relative">
             <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-fuchsia-500/20 blur-[100px] rounded-full -z-10"></div>
             
             <h1 class="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-6 drop-shadow-lg">
@@ -37,19 +45,39 @@ const itemListSchema = {
             </p>
         </header>
 
+        <!-- NEW: AUTOCOMPLETE SEARCH BAR -->
+        <div class="max-w-2xl mx-auto mb-16 relative z-40">
+            <div class="relative group">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-fuchsia-500 transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <input 
+                    type="text" 
+                    id="anime-search-input" 
+                    placeholder="Search for an anime..." 
+                    class="w-full bg-slate-900 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white text-sm font-bold placeholder-slate-500 focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 transition-all shadow-xl" 
+                    autocomplete="off" 
+                />
+            </div>
+            
+            <!-- Search Results Dropdown -->
+            <div id="search-dropdown" class="absolute w-full mt-2 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden hidden max-h-[300px] overflow-y-auto no-scrollbar z-50">
+                <ul id="search-results-list" class="divide-y divide-white/5"></ul>
+            </div>
+        </div>
+
         <AdUnit type="banner" class="mb-12 rounded-2xl hidden md:flex" />
 
         <!-- Quick Links (SEO Bait) -->
         <div class="flex flex-wrap justify-center gap-3 mb-16">
             <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2 mr-2">Trending:</span>
-            <a href="#top-rated" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Best Anime to Watch</a>
-            <a href="/anime-world/100101922-kimetsu-no-yaiba" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Demon Slayer</a>
-            <a href="/anime-world/100114065-jujutsu-kaisen" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Jujutsu Kaisen</a>
-            <a href="/anime-world/100001535-death-note" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors">Anime like Death Note</a>
+            <a href="#top-rated" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors shadow-sm">Best Anime to Watch</a>
+            <a href="/anime-world/100101922-kimetsu-no-yaiba" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors shadow-sm">Anime like Demon Slayer</a>
+            <a href="/anime-world/100114065-jujutsu-kaisen" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors shadow-sm">Anime like Jujutsu Kaisen</a>
+            <a href="/anime-world/100001535-death-note" class="px-4 py-2 rounded-full bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:border-fuchsia-500 transition-colors shadow-sm">Anime like Death Note</a>
         </div>
 
         <section id="top-rated" class="mb-20">
-            <!-- ... [KEEP REST OF HTML EXACTLY THE SAME] ... -->
             <div class="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
                 <div>
                     <h2 class="text-3xl font-black text-white uppercase tracking-tighter">Highly Connected Anime</h2>
@@ -87,3 +115,58 @@ const itemListSchema = {
         </div>
     </main>
 </Layout>
+
+<!-- Client-side Search Logic -->
+<script define:vars={{ searchIndex }}>
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('anime-search-input');
+        const dropdown = document.getElementById('search-dropdown');
+        const resultsList = document.getElementById('search-results-list');
+
+        if (!input || !dropdown || !resultsList) return;
+
+        input.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            
+            if (query.length < 2) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            // Filter the passed search index
+            const matches = searchIndex
+                .filter(a => a.name.toLowerCase().includes(query))
+                .slice(0, 8); // Limit to top 8 results
+
+            if (matches.length === 0) {
+                resultsList.innerHTML = '<li class="p-4 text-sm text-slate-500 font-bold text-center">No anime found.</li>';
+            } else {
+                resultsList.innerHTML = matches.map(a => `
+                    <li>
+                        <a href="${a.url}" class="flex items-center gap-4 p-3 hover:bg-slate-800 transition-colors active:bg-slate-700">
+                            <div class="w-10 h-10 rounded-lg bg-slate-950 overflow-hidden shrink-0 border border-white/10">
+                                ${a.image ? `<img src="${a.image}" alt="" class="w-full h-full object-cover" />` : ''}
+                            </div>
+                            <span class="text-white text-sm font-bold truncate">${a.name}</span>
+                        </a>
+                    </li>
+                `).join('');
+            }
+            
+            dropdown.classList.remove('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+    });
+</script>
+
+<style>
+    /* Hide scrollbar for the dropdown */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
