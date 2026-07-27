@@ -1,5 +1,7 @@
 // src/utils/animeDb.ts
-import dbRaw from '../assets/data/anime_world_db.json';
+
+// 1. CHANGED: Now importing your new database file with descriptions
+import dbRaw from '../assets/data/anime_world_db_desc.json';
 
 // Cast to any to bypass strict type checking on the massive dynamic JSON
 const db: any = dbRaw;

@@ -11,6 +11,7 @@ interface ItemData {
     id: number;
     name: string;
     image: string | null;
+    description?: string | null; // NEW: Added description field
 }
 
 interface StudioData {
@@ -23,16 +24,14 @@ interface AnimeData extends ItemData {
     characters: number[] | any[];
 }
 
-// 2. Generate static paths & pass the anime object as a prop to fix the TypeScript error
 export async function getStaticPaths() {
     const allAnime = getAllAnime();
     return allAnime.map((anime: any) => ({
         params: { id: `${anime.id}-${slugify(anime.name)}` },
-        props: { targetAnime: anime } // Passed directly as a prop
+        props: { targetAnime: anime } 
     }));
 }
 
-// 3. Read targetAnime directly from Astro.props (Bypasses URL string parsing)
 const { targetAnime } = Astro.props as { targetAnime: AnimeData };
 
 if (!targetAnime) {
@@ -43,6 +42,11 @@ const rawId = targetAnime.id;
 const studios = resolveStudios(targetAnime.studios) as StudioData[];
 const characters = resolveCharacters(targetAnime.characters) as ItemData[];
 const recommendedAnime = getSimilarAnime(rawId) as ItemData[];
+
+// NEW: Create a clean, HTML-free description for Meta Tags and Schema
+const cleanMetaDescription = targetAnime.description 
+    ? targetAnime.description.replace(/<\/?[^>]+(>|$)/g, "").substring(0, 155) + "..."
+    : `Looking for good anime to watch? If you liked ${targetAnime.name}, explore its character cast, animation studios, and discover mathematically similar anime.`;
 
 // Generate JSON-LD Structured Data for Google
 const jsonLd = {
@@ -59,6 +63,7 @@ const jsonLd = {
     {
       "@type": "TVSeries",
       "name": targetAnime.name,
+      "description": cleanMetaDescription, // NEW: Added to schema
       "image": targetAnime.image ? new URL(targetAnime.image, Astro.url).toString() : "",
       "productionCompany": studios.map(s => ({ "@type": "Organization", "name": s.name })),
       "character": characters.map(c => ({ "@type": "Person", "name": c.name }))
@@ -69,7 +74,7 @@ const jsonLd = {
 
 <Layout 
     title={`Anime like ${targetAnime.name} | Characters & Studios`} 
-    description={`Looking for good anime to watch? If you liked ${targetAnime.name}, explore its character cast, animation studios, and discover mathematically similar anime.`}
+    description={cleanMetaDescription} 
     image={targetAnime.image || undefined}
 >
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
@@ -109,16 +114,21 @@ const jsonLd = {
                     <div class="p-6 relative z-10 -mt-20">
                         <h1 class="text-2xl md:text-3xl font-black text-white leading-tight mb-3 drop-shadow-lg">{targetAnime.name}</h1>
                         
-                        <!-- DYNAMIC TEXT PARAGRAPH FOR ADSENSE / SEO -->
-                        <div class="mt-4 text-slate-300 text-sm leading-relaxed border-l-2 border-indigo-500 pl-4 bg-slate-900/50 p-4 rounded-r-xl shadow-inner">
+                        <!-- NEW: SYNOPSIS RENDERED FROM JSON -->
+                        {targetAnime.description && (
+                            <div class="mt-6 mb-4">
+                                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Synopsis</h2>
+                                <div class="text-sm text-slate-300 leading-relaxed bg-slate-900/50 p-4 rounded-xl border border-white/5" set:html={targetAnime.description}>
+                                </div>
+                            </div>
+                        )}
+
+                        <!-- GAME CONTEXT (Proves relevance to AdSense) -->
+                        <div class="mt-4 text-slate-400 text-xs leading-relaxed border-l-2 border-indigo-500 pl-4 bg-slate-900/30 p-3 rounded-r-xl shadow-inner">
                             <p>
-                                Welcome to the Driftaku database profile for <strong>{targetAnime.name}</strong>. 
-                                In our spatial logic puzzle game, this anime serves as a major connection node. 
-                                It was produced by {studios.length > 0 ? studios.map(s => s.name).join(', ') : 'various studios'} 
-                                and features a massive cast of {characters.length} key characters and voice actors. 
-                                If you are trying to build a winning path in the game, routing through {targetAnime.name} 
-                                can connect you to {recommendedAnime.length} highly similar anime based on shared database metadata. 
-                                Mastering these connections is the key to topping the daily leaderboard.
+                                <strong>Driftaku Database:</strong> {targetAnime.name} serves as a major connection node. 
+                                It connects to {studios.length} studios and features {characters.length} key cast members. 
+                                Mastering its connections unlocks {recommendedAnime.length} similar anime pathways.
                             </p>
                         </div>
                         
@@ -202,7 +212,8 @@ const jsonLd = {
                                         )}
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <p class="text-white text-xs md:text-sm font-bold truncate">{char.name}</p>
+                                        <!-- NEW: Added character description title if it exists -->
+                                        <p class="text-white text-xs md:text-sm font-bold truncate" title={char.description || char.name}>{char.name}</p>
                                         <p class="text-[9px] md:text-[10px] text-rose-400 font-black uppercase tracking-widest mt-1">Character</p>
                                     </div>
                                 </div>
@@ -220,3 +231,10 @@ const jsonLd = {
         </div>
     </main>
 </Layout>
+
+<style>
+    /* Styling for the AniList HTML elements (like <br>, <i>) injected via set:html */
+    :global(.prose-sm p) { margin-bottom: 0.5rem; }
+    :global(.prose-sm i) { font-style: italic; color: #94a3b8; }
+    :global(.prose-sm b) { font-weight: bold; color: #f8fafc; }
+</style>
