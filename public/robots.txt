@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.driftaku.com/sitemap-index.xml
+User-agent: Mediapartners-Google
+Disallow: /anime-world/
+Disallow: /archive/
+Disallow: /play/friends/
+
+Sitemap: https://driftaku.com/sitemap-index.xml
